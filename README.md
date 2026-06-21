@@ -1,7 +1,5 @@
 # Honcho Codex Gateway
 
-**This repository was created with AI assistance. This README is also a temporary AI-generated README, and I plan to rewrite it manually later.**
-
 **Language:** English | [한국어](README.ko.md)
 
 Local, single-user, OpenAI-compatible gateway for Honcho Docker quick installs.
@@ -12,9 +10,19 @@ Local, single-user, OpenAI-compatible gateway for Honcho Docker quick installs.
 
 This is not an official OpenAI, Honcho, or Hermes Agent project. It is not an OpenAI API replacement. Use only with your own account/credentials and comply with applicable terms.
 
+## Why this exists
+
+Most Codex OAuth gateway projects focus on exposing Codex or ChatGPT OAuth-backed chat as an OpenAI-compatible API. Honcho needs a little more than that for a clean Docker quick install: it needs a chat provider and an embeddings provider with compatible vector dimensions from the first startup.
+
+This project packages that boundary for Honcho specifically: Codex OAuth-backed chat completions on one side, and a local llama.cpp/GGUF embeddings proxy on the other, both behind the same local OpenAI-compatible `/v1` surface.
+
+Unlike general Codex OAuth gateways, this project also provides a local `/v1/embeddings` route backed by llama.cpp/GGUF, because Codex OAuth gateways generally cover chat/responses rather than embeddings.
+
 ## License and provenance
 
 This repository is licensed under **AGPL-3.0-or-later**. The license is chosen to stay compatible with Honcho's AGPL-3.0 codebase while also allowing MIT-licensed Hermes-derived OAuth/auth patterns to be redistributed as part of the combined work.
+
+**This repository was created with AI assistance. This README is also a temporary AI-generated README, and I plan to rewrite it manually later.**
 
 Substantial portions of the code and documentation were generated, adapted, or organized with AI assistance in a local Hermes Agent session under DaydreamBlend's direction. See `NOTICE.md` for attribution and provenance details.
 
