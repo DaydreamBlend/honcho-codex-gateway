@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+.auth/
+auth.json
+auth.lock
+.env
+models/
+*.gguf
+logs/

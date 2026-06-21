@@ -1,0 +1,37 @@
+services:
+  codex-gateway:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      CODEX_AUTH_DIR: /data/codex-auth
+      EMBEDDING_BASE_URL: http://embedding-server:8080/v1
+    ports:
+      - "127.0.0.1:8787:8787"
+    volumes:
+      - ./.auth:/data/codex-auth
+    depends_on:
+      embedding-server:
+        condition: service_started
+
+  embedding-server:
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda
+    restart: unless-stopped
+    gpus: all
+    expose:
+      - "8080"
+    command:
+      - --model
+      - /models/selected.gguf
+      - --embedding
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - --batch-size
+      - "8192"
+      - --ubatch-size
+      - "8192"
+    volumes:
+      - ./models/bge-m3-FP16.gguf:/models/selected.gguf:ro

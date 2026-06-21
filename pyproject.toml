@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "honcho-codex-gateway"
+version = "0.1.0"
+description = "Local single-user OpenAI-compatible gateway for Honcho: Codex OAuth chat plus local embeddings."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "AGPL-3.0-or-later"
+dependencies = [
+    "fastapi>=0.110",
+    "pydantic>=2.7,<3",
+    "uvicorn[standard]>=0.30",
+    "openai>=1.99.7",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
+
+[project.scripts]
+honcho-codex-auth = "honcho_codex_gateway.codex_auth:main"
+honcho-codex-gateway = "honcho_codex_gateway.cli:main"
+honcho-codex-prepare = "honcho_codex_gateway.prepare:main"
+
+[project.urls]
+Hermes-Agent = "https://github.com/NousResearch/hermes-agent"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-ra"

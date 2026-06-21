@@ -1,0 +1,15 @@
+# Apply this to Honcho .env BEFORE running Honcho migrations/startup on a fresh install.
+# Replace <GATEWAY_API_KEY> with the value from honcho-codex-gateway/.env.
+LLM_OPENAI_API_KEY=<GATEWAY_API_KEY>
+
+DIALECTIC_LEVELS__minimal__MODEL_CONFIG__TRANSPORT=openai
+DIALECTIC_LEVELS__minimal__MODEL_CONFIG__MODEL=gpt-5.4-mini
+DIALECTIC_LEVELS__minimal__MODEL_CONFIG__OVERRIDES__BASE_URL=http://host.docker.internal:8787/v1
+# Repeat the same BASE_URL/model pattern for low/medium/high/max, summary, deriver, and dream configs.
+
+EMBEDDING_MODEL_CONFIG__TRANSPORT=openai
+EMBEDDING_MODEL_CONFIG__MODEL=text-embedding-bge-m3
+EMBEDDING_MODEL_CONFIG__OVERRIDES__BASE_URL=http://host.docker.internal:8787/v1
+EMBEDDING_MODEL_CONFIG__OVERRIDES__API_KEY_ENV=LLM_OPENAI_API_KEY
+EMBEDDING_VECTOR_DIMENSIONS=1024
+EMBEDDING_MODEL_CONFIG__DIMENSIONS_MODE=never

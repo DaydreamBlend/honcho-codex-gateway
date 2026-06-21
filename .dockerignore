@@ -1,0 +1,10 @@
+.git
+.venv
+__pycache__
+.pytest_cache
+.auth
+auth.json
+auth.lock
+.env
+models
+*.gguf
