@@ -22,9 +22,9 @@ Honcho Docker quick install을 위한 로컬 single-user OpenAI-compatible gatew
 
 이 저장소는 **AGPL-3.0-or-later**로 라이선스됩니다. 이 라이선스는 Honcho의 AGPL-3.0 codebase와 호환성을 유지하면서, MIT-licensed Hermes-derived OAuth/auth pattern을 combined work의 일부로 재배포할 수 있도록 선택했습니다.
 
-**이 저장소는 AI 도움을 받아 만들어졌습니다. 이 README도 임시로 AI가 생성한 README이며, 추후 직접 새로 작성할 예정입니다.**
+**AI assistance notice:** 이 저장소의 일부 코드와 문서 초안은 maintainer 검토하에 AI 도움을 받아 작성 또는 수정되었습니다. README는 추후 maintainer가 직접 계속 다듬을 예정입니다.
 
-코드와 문서의 상당 부분은 DaydreamBlend의 지시에 따라 local Hermes Agent session에서 AI 도움을 받아 생성, 수정, 정리되었습니다. attribution과 provenance detail은 `NOTICE.md`를 참고하세요.
+Attribution과 provenance detail은 `NOTICE.md`를 참고하세요.
 
 ## Install: Honcho Docker quick install, gateway first
 

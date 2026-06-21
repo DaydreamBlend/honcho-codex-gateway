@@ -22,9 +22,9 @@ Unlike general Codex OAuth gateways, this project also provides a local `/v1/emb
 
 This repository is licensed under **AGPL-3.0-or-later**. The license is chosen to stay compatible with Honcho's AGPL-3.0 codebase while also allowing MIT-licensed Hermes-derived OAuth/auth patterns to be redistributed as part of the combined work.
 
-**This repository was created with AI assistance. This README is also a temporary AI-generated README, and I plan to rewrite it manually later.**
+**AI assistance notice:** Parts of this repository, including documentation drafts, were generated or edited with AI assistance under maintainer review. The maintainer plans to revise the README manually over time.
 
-Substantial portions of the code and documentation were generated, adapted, or organized with AI assistance in a local Hermes Agent session under DaydreamBlend's direction. See `NOTICE.md` for attribution and provenance details.
+See `NOTICE.md` for attribution and provenance details.
 
 ## Install: Honcho Docker quick install, gateway first
 

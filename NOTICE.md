@@ -12,11 +12,11 @@ This repository contains or adapts code patterns from:
 
 MIT-licensed material is compatible with AGPL-3.0-or-later redistribution when the combined work is distributed under AGPL terms. Honcho's AGPL license is preserved by licensing this combined gateway project under AGPL-3.0-or-later.
 
-## AI-generated code notice
+## AI assistance notice
 
-Substantial portions of this repository were generated, adapted, or organized with AI assistance in a local Hermes Agent session under the direction of DaydreamBlend.
+Parts of this repository were generated, adapted, or organized with AI assistance in a local Hermes Agent session under the direction and review of DaydreamBlend.
 
-The generated code was reviewed and tested locally before the initial private GitHub push, but it is provided without warranty under the terms of the AGPL-3.0-or-later license.
+The code and documentation were reviewed and tested locally before public release, but they are provided without warranty under the terms of the AGPL-3.0-or-later license.
 
 ## Upstream attribution
 
