@@ -6,7 +6,7 @@
 
 Honcho Docker quick install을 위한 로컬 single-user OpenAI-compatible gateway입니다.
 
-- Chat Completions: `/v1/chat/completions`는 사용자 소유의 Codex OAuth credential과 이전 Honcho Codex adapter에서 가져온 adapter-local Responses 변환을 사용합니다.
+- Chat Completions: `/v1/chat/completions`는 사용자 소유의 Codex OAuth credential과 Hermes Agent에서 사용한 Responses 변환 패턴을 이 gateway에 맞게 조정해 사용합니다.
 - Embeddings: `/v1/embeddings`는 GGUF embedding model을 사용하는 llama.cpp server로 proxy합니다. 현재 지원되는 embedding backend는 llama.cpp 기반 GGUF뿐입니다.
 - Safety posture: 별도 Docker stack, 기본 localhost-only published port, local `GATEWAY_API_KEY`, credential pooling 없음, hosted/public proxy 의도 없음.
 
