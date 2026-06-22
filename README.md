@@ -123,6 +123,16 @@ It publishes only the gateway on localhost:
 http://127.0.0.1:8787
 ```
 
+The bundled llama.cpp embedding server is started with an 8192-token context window for BGE-M3 embeddings:
+
+```text
+--ctx-size 8192
+--batch-size 8192
+--ubatch-size 8192
+```
+
+This is intentional: Honcho's generated embedding config uses `MAX_INPUT_TOKENS=8192`, so the embedding server context window must not remain at a smaller default such as 4096.
+
 From Honcho containers, use this OpenAI-compatible base URL:
 
 ```text
