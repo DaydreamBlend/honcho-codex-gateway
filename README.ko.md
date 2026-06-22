@@ -2,13 +2,55 @@
 
 **언어:** [English](README.md) | 한국어
 
-Honcho Docker quick install을 위한 로컬 single-user OpenAI-compatible gateway입니다.
+Honcho Codex Gateway는 Codex-backed chat completions와 local GGUF/llama.cpp embeddings를 사용해 self-hosted Honcho를 bootstrap하기 위한 local-only helper입니다.
+
+이 프로젝트는 특히 Hermes-style personal agent memory를 위해 Honcho를 설정할 때, 본인 credential을 사용하는 local single-user experimentation을 의도합니다. Hosted API service, public proxy, credential-sharing tool, 공식 OpenAI API의 production replacement가 아닙니다.
 
 - Chat Completions: `/v1/chat/completions`는 사용자 소유의 Codex OAuth credential과 Hermes Agent에서 사용한 Responses 변환 패턴을 이 gateway에 맞게 조정해 사용합니다.
 - Embeddings: `/v1/embeddings`는 GGUF embedding model을 사용하는 llama.cpp server로 proxy합니다. 현재 지원되는 embedding backend는 llama.cpp 기반 GGUF뿐입니다.
 - Safety posture: 별도 Docker stack, 기본 localhost-only published port, local `GATEWAY_API_KEY`, credential pooling 없음, hosted/public proxy 의도 없음.
 
-이 프로젝트는 OpenAI, Honcho, Hermes Agent의 공식 프로젝트가 아닙니다. OpenAI API replacement가 아닙니다. 본인 계정/credential로만 사용하고 적용 가능한 약관을 준수하세요.
+이 프로젝트는 OpenAI, Honcho, Hermes Agent, Nous Research, Plastic Labs의 공식 프로젝트가 아닙니다. 본인 계정/credential로만 사용하고 적용 가능한 약관을 준수하세요.
+
+## What this project is
+
+- Honcho Docker quick-install style setup을 위한 local bootstrap/helper layer입니다.
+- Single-user development와 experimentation을 위한 convenience gateway입니다.
+- Honcho의 OpenAI-compatible chat provider 설정과 local GGUF/llama.cpp embeddings를 함께 맞추는 도구입니다.
+- 범용 OpenAI-compatible platform이 아니라 personal memory-stack experiment를 위한 좁은 helper입니다.
+
+## What this project is not
+
+이 프로젝트는 다음이 아닙니다.
+
+- hosted API service;
+- credential pooling service;
+- multi-user proxy;
+- resale layer;
+- rate-limit bypass mechanism;
+- scraping, bulk extraction, data-harvesting tool;
+- official OpenAI API의 production replacement;
+- arbitrary application을 위한 general-purpose OpenAI-compatible gateway.
+
+## Safety and acceptable use
+
+이 프로젝트는 사용자 본인 credential을 사용하는 local single-user experimentation을 의도합니다. Rate limit 우회, credential 공유, account pooling, access resale, hosted API service 제공을 시도하지 않습니다.
+
+이 gateway를 public으로 노출하지 마세요. Credential을 공유, pooling, rotation, resale하지 마세요. Automated scraping, bulk output extraction, data harvesting 용도로 사용하지 마세요. Production, commercial, multi-user, CI/CD, hosted usage에는 가능한 경우 officially supported API와 authentication flow를 사용하세요. 연결하는 service의 약관 준수 책임은 사용자에게 있습니다.
+
+## Compatibility status
+
+| Component | Status |
+| --- | --- |
+| Honcho Docker quick install | Primary target |
+| Fresh Honcho database | Recommended |
+| Existing Honcho database | Embedding dimension mismatch risk |
+| Linux | Tested / primary target |
+| macOS | Untested / experimental |
+| Windows / WSL2 | Untested / experimental |
+| Public hosted deployment | Not supported |
+| Multi-user deployment | Not supported |
+| Production API replacement | Not supported |
 
 ## Why this exists
 
@@ -17,6 +59,10 @@ Honcho Docker quick install을 위한 로컬 single-user OpenAI-compatible gatew
 이 프로젝트는 그 provider boundary를 Honcho에 맞게 포장합니다. 한쪽에는 Codex OAuth 기반 chat completions를 두고, 다른 한쪽에는 local llama.cpp/GGUF embeddings proxy를 두어, 둘 다 같은 local OpenAI-compatible `/v1` surface 뒤에 둡니다.
 
 일반적인 Codex OAuth gateway와 달리, 이 프로젝트는 llama.cpp/GGUF 기반 local `/v1/embeddings` route도 함께 제공합니다. Codex OAuth gateway는 보통 chat/responses 경로를 다루고, embeddings는 별도 backend가 필요하기 때문입니다.
+
+## Security and limitations
+
+Secret handling과 local exposure guidance는 [`SECURITY.md`](SECURITY.md)를 참고하세요. Experimental status, compatibility limits, embedding-dimension caveats는 [`LIMITATIONS.md`](LIMITATIONS.md)를 참고하세요.
 
 ## License and provenance
 
@@ -65,7 +111,11 @@ docker compose up
 6. Honcho가 healthy가 된 뒤 Hermes Honcho setup을 실행합니다.
 ```
 
-기본 OpenAI embedding config로 Honcho API/deriver를 한 번 시작한 뒤 BGE-M3로 나중에 바꾸지 마세요. Fresh Honcho default는 OpenAI `text-embedding-3-small` / `1536`이고, 이 gateway의 기본 local embedding model은 BGE-M3 / `1024`입니다. Gateway embedding configuration을 적용하기 전에 Honcho를 시작하면 vector dimension mismatch와 migration/re-embedding 작업이 필요해질 수 있습니다.
+### Important: embedding dimensions must match from first startup
+
+기본 OpenAI embedding config로 Honcho API/deriver를 한 번 시작한 뒤 BGE-M3로 나중에 바꾸지 마세요. Honcho는 첫 embedding provider/model dimension을 기준으로 database/vector index를 초기화할 수 있습니다. OpenAI `text-embedding-3-small`은 보통 `1536` dimensions를 사용하고, 이 gateway의 기본 local BGE-M3 embedding model은 `1024` dimensions를 사용합니다.
+
+Database가 이미 한 dimension으로 초기화되었다면 나중에 바꾸는 과정에서 실패하거나 database reset, migration, re-embedding 작업이 필요할 수 있습니다. 가능하면 첫 Honcho startup 전에 원하는 embedding provider를 설정하세요.
 
 ### 1. Clone both repos
 

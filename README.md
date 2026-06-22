@@ -2,13 +2,55 @@
 
 **Language:** English | [한국어](README.ko.md)
 
-Local, single-user, OpenAI-compatible gateway for Honcho Docker quick installs.
+Honcho Codex Gateway is a local-only helper for bootstrapping self-hosted Honcho with Codex-backed chat completions and local GGUF/llama.cpp embeddings.
+
+It is intended for local, single-user experimentation with your own credentials, especially when setting up Honcho for Hermes-style personal agent memory. It is not a hosted API service, public proxy, credential-sharing tool, or production replacement for the official OpenAI API.
 
 - Chat Completions: `/v1/chat/completions` uses a user-owned Codex OAuth credential and the Responses conversion pattern used by Hermes Agent, adapted for this gateway.
 - Embeddings: `/v1/embeddings` proxies to a llama.cpp server using a GGUF embedding model. The current supported embedding backend is GGUF via llama.cpp only.
 - Safety posture: separate Docker stack, localhost-only published port by default, local `GATEWAY_API_KEY`, no credential pooling, no hosted/public proxy intent.
 
-This is not an official OpenAI, Honcho, or Hermes Agent project. It is not an OpenAI API replacement. Use only with your own account/credentials and comply with applicable terms.
+This is not an official OpenAI, Honcho, Hermes Agent, Nous Research, or Plastic Labs project. Use only with your own account/credentials and comply with applicable terms.
+
+## What this project is
+
+- A local bootstrap/helper layer for Honcho Docker quick-install style setups.
+- A convenience gateway for single-user development and experimentation.
+- A way to pair Honcho's OpenAI-compatible chat provider configuration with local GGUF/llama.cpp embeddings.
+- A narrow helper for personal memory-stack experiments, not a general OpenAI-compatible platform.
+
+## What this project is not
+
+This project is not:
+
+- a hosted API service;
+- a credential pooling service;
+- a multi-user proxy;
+- a resale layer;
+- a rate-limit bypass mechanism;
+- a scraping, bulk extraction, or data-harvesting tool;
+- a production replacement for the official OpenAI API;
+- a general-purpose OpenAI-compatible gateway for arbitrary applications.
+
+## Safety and acceptable use
+
+This project is intended for local, single-user experimentation with the user's own credentials. It does not attempt to bypass rate limits, share credentials, pool accounts, resell access, or provide a hosted API service.
+
+Do not expose this gateway publicly. Do not share, pool, rotate, or resell credentials. Do not use it for automated scraping, bulk output extraction, or data harvesting. For production, commercial, multi-user, CI/CD, or hosted usage, use officially supported APIs and authentication flows where applicable. Users are responsible for complying with the terms of the services they connect.
+
+## Compatibility status
+
+| Component | Status |
+| --- | --- |
+| Honcho Docker quick install | Primary target |
+| Fresh Honcho database | Recommended |
+| Existing Honcho database | Risk of embedding dimension mismatch |
+| Linux | Tested / primary target |
+| macOS | Untested / experimental |
+| Windows / WSL2 | Untested / experimental |
+| Public hosted deployment | Not supported |
+| Multi-user deployment | Not supported |
+| Production API replacement | Not supported |
 
 ## Why this exists
 
@@ -17,6 +59,10 @@ Most Codex OAuth gateway projects focus on exposing Codex or ChatGPT OAuth-backe
 This project packages that boundary for Honcho specifically: Codex OAuth-backed chat completions on one side, and a local llama.cpp/GGUF embeddings proxy on the other, both behind the same local OpenAI-compatible `/v1` surface.
 
 Unlike general Codex OAuth gateways, this project also provides a local `/v1/embeddings` route backed by llama.cpp/GGUF, because Codex OAuth gateways generally cover chat/responses rather than embeddings.
+
+## Security and limitations
+
+See [`SECURITY.md`](SECURITY.md) for secret-handling and local-exposure guidance. See [`LIMITATIONS.md`](LIMITATIONS.md) for experimental status, compatibility limits, and embedding-dimension caveats.
 
 ## License and provenance
 
@@ -65,7 +111,11 @@ Correct fresh order:
 6. After Honcho is healthy, run Hermes Honcho setup.
 ```
 
-Do **not** start Honcho API/deriver once with the default OpenAI embedding config and then switch to BGE-M3 later. Fresh Honcho defaults are OpenAI `text-embedding-3-small` / `1536`; this gateway's default local embedding model is BGE-M3 / `1024`. Starting Honcho before applying the gateway embedding configuration can lead to vector dimension mismatch and migration/re-embedding work later.
+### Important: embedding dimensions must match from first startup
+
+Do **not** start Honcho API/deriver once with the default OpenAI embedding config and then switch to BGE-M3 later. Honcho may initialize its database/vector index based on the first embedding provider/model dimensions. OpenAI `text-embedding-3-small` commonly uses `1536` dimensions, while this gateway's default local BGE-M3 embedding model uses `1024`.
+
+If the database has already been initialized with one dimension, switching later may fail or require a database reset, migration, or re-embedding work. Configure the desired embedding provider before the first Honcho startup whenever possible.
 
 ### 1. Clone both repos
 
