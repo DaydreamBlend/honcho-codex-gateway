@@ -25,6 +25,8 @@ services:
       - --model
       - /models/selected.gguf
       - --embedding
+      - --ctx-size
+      - "8192"
       - --host
       - 0.0.0.0
       - --port
