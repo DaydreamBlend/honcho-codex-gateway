@@ -103,12 +103,12 @@ docker compose up
    - gateway Python entrypoint를 설치합니다.
    - skip하지 않으면 Codex OAuth login을 실행합니다.
    - 별도 gateway + llama.cpp GGUF embedding Docker stack을 시작합니다.
-   - `--write-honcho-env --honcho-dir ../honcho`로 Honcho `.env`를 생성/수정할 수 있습니다.
+   - 필요하면 Honcho `.env`를 `.env.template`에서 생성합니다.
+   - 필요하면 Honcho `docker-compose.yml`을 `docker-compose.yml.example`에서 생성합니다.
+   - Linux에서는 Honcho `api`와 `deriver`에 `host.docker.internal:host-gateway`를 patch합니다.
    - verbose installer output은 `logs/install-*.log`에 기록합니다.
-3. Honcho에서 docker-compose.yml.example을 docker-compose.yml로 복사합니다.
-4. Honcho `api`와 `deriver`에 Linux `host.docker.internal:host-gateway` override가 있는지 확인합니다.
-5. Honcho에서 docker compose up을 실행합니다.
-6. Honcho가 healthy가 된 뒤 Hermes Honcho setup을 실행합니다.
+3. Honcho `.env` / `docker-compose.yml`을 검토한 뒤 Honcho에서 docker compose up을 실행합니다.
+4. Honcho가 healthy가 된 뒤 Hermes Honcho setup을 실행합니다.
 ```
 
 ### Important: embedding dimensions must match from first startup
@@ -138,17 +138,27 @@ license: MIT, BAAI/bge-m3와 GGUF model card에서 이어짐
 path: <parent-directory>/honcho-codex-gateway/models/bge-m3-FP16.gguf
 ```
 
-이미 local file이 있다면 installer 실행 전에 직접 배치하거나 symlink할 수 있습니다. 자동 model download를 끄려면:
+Terminal에서 `install.sh`를 실행하면 사용할 embedding GGUF를 물어봅니다. Bundled BGE-M3 default를 다운로드하거나, 기존 local GGUF를 `./models/` 아래로 복사하거나, Hugging Face URL을 붙여넣을 수 있습니다. Hugging Face의 direct `.gguf` file URL이면 바로 다운로드하고, Hugging Face repo/tree URL이면 사용 가능한 `.gguf` file 목록을 보여준 뒤 선택하게 합니다. Hugging Face가 아닌 URL은 거부합니다. 선택된 file은 `EMBEDDING_GGUF_PATH`에 기록되어 Docker Compose가 llama.cpp server에 mount합니다.
+
+Interactive menu 대신 flag를 사용하려면 model option을 명시하세요. 예:
 
 ```bash
-./install.sh --skip-model-download
+./install.sh --model-file /path/to/embedding-model.gguf --embedding-dimensions auto
+# metadata detection을 사용할 수 없는 file이라면:
+./install.sh --model-file /path/to/embedding-model.gguf --embedding-dimensions 768
 ```
+
+Custom `--model-url`을 사용할 때는 `--model-sha256 SHA256`도 같이 지정하세요. Checksum verification 없이 받겠다고 의도적으로 결정한 경우에만 `--model-sha256 ''`를 사용하세요.
+
+기본적으로 installer는 bundled `bge-m3-fp16` embedding preset을 사용하고, 가능하면 GGUF metadata에서 `EMBEDDING_VECTOR_DIMENSIONS`를 자동으로 설정합니다. Metadata detection을 할 수 없으면 preset의 `1024` dimension으로 fallback합니다.
+
+`--write-honcho-env`가 기존 Honcho `.env`를 업데이트할 때, 기존 `EMBEDDING_VECTOR_DIMENSIONS` 값이 선택된 model dimension과 다르면 installer는 기본적으로 중단합니다. `--force-embedding-dimension-change`는 일반 설치 option이 아니라 migration/re-embedding을 의도할 때만 쓰는 escape hatch로 취급하세요.
 
 그 다음 실행:
 
 ```bash
 cd <parent-directory>/honcho-codex-gateway
-./install.sh --write-honcho-env --honcho-dir ../honcho
+sudo ./install.sh
 ```
 
 Installer option을 확인하려면:
@@ -157,7 +167,7 @@ Installer option을 확인하려면:
 ./install.sh --help
 ```
 
-`--write-honcho-env`는 필요할 때 Honcho `.env`를 `.env.template`에서 생성하거나, 기존 `.env`를 timestamped `.env.bak.honcho-codex-gateway-*` backup으로 저장한 뒤 업데이트합니다. 생성된 gateway 관련 key만 관리합니다. Honcho를 시작하기 전에 결과를 검토하세요.
+`install.sh`는 `../honcho` 같은 sibling Honcho checkout을 자동으로 감지합니다. 필요할 때 Honcho `.env`를 `.env.template`에서 생성하거나, 기존 `.env`를 timestamped `.env.bak.honcho-codex-gateway-*` backup으로 저장한 뒤 업데이트합니다. Linux에서는 필요할 때 Honcho `docker-compose.yml`도 `docker-compose.yml.example`에서 생성하고, `api`와 `deriver`에 `host.docker.internal:host-gateway`를 patch합니다. 기존 compose file은 patch 전에 backup합니다. Honcho가 이 repo 옆에 없다면 `--honcho-dir /path/to/honcho`를 사용하고, 자동 Honcho 수정을 끄려면 `--no-write-honcho-env`를 사용하세요. Honcho를 시작하기 전에 두 파일을 모두 검토하세요.
 
 Installer는 noisy setup/build output을 `logs/install-*.log`에 보관하고, 마지막 console summary는 Honcho `.env` 위치와 Codex OAuth status 중심으로 짧게 유지합니다. 현재 사용자가 `/var/run/docker.sock`에 접근할 수 없으면 `sudo -v`를 요청하고 `sudo docker compose`로 Docker Compose를 실행합니다.
 
@@ -189,27 +199,27 @@ Honcho container에서는 이 OpenAI-compatible base URL을 사용합니다.
 http://host.docker.internal:8787/v1
 ```
 
-Linux에서는 Honcho `api`와 `deriver` service에 아래 provider-networking override를 `docker-compose.yml` 또는 compose override로 추가하세요. Linux Docker는 `host-gateway`가 설정되어 있지 않으면 `host.docker.internal`을 일관되게 제공하지 않습니다. 이 저장소는 Linux에서 개발/테스트되었습니다. macOS와 Windows Docker Desktop은 여기서 테스트하지 않았습니다.
+Linux에서는 Honcho integration이 활성화되어 있으면 installer가 필요할 때 Honcho `docker-compose.yml`을 `docker-compose.yml.example`에서 생성하고, Honcho `api`와 `deriver` service에 아래 provider-networking override를 자동으로 추가합니다.
 
 ```yaml
 extra_hosts:
   - "host.docker.internal:host-gateway"
 ```
 
+Linux Docker는 `host-gateway`가 설정되어 있지 않으면 `host.docker.internal`을 일관되게 제공하지 않습니다. 이 저장소는 Linux에서 개발/테스트되었습니다. macOS와 Windows Docker Desktop은 여기서 테스트하지 않았습니다. Non-Linux host에서는 installer가 Honcho compose를 자동 patch하지 않습니다.
+
 이것은 gateway service를 Honcho stack에 grafting하는 것이 아닙니다. Honcho container가 host-local provider URL에 접근할 수 있게 해주는 설정일 뿐입니다. Docker 환경이 이미 `host.docker.internal`을 올바르게 resolve하지 않는 한, 문서화된 Linux setup에서는 이 override를 required로 취급하세요.
 
-### 3. Convert Honcho `.env.template` to `.env` with gateway settings
+### 3. 생성된 Honcho file 검토
 
-이제 Honcho를 준비하되, **이 edit이 끝나기 전에는 `docker compose up`을 실행하지 마세요**. `--write-honcho-env --honcho-dir <parent-directory>/honcho`를 사용했다면 gateway block은 이미 적용되었고, 기존 `.env`가 있었다면 backup도 생성되었습니다.
+Gateway installer가 Honcho config를 준비하기 전에는 Honcho `docker compose up`을 실행하지 마세요. 위 추천 명령을 사용하면 installer가 이미 다음을 처리합니다.
 
-```bash
-cd <parent-directory>/honcho
-cp docker-compose.yml.example docker-compose.yml
-# --write-honcho-env를 사용하지 않았을 때만 필요합니다:
-cp .env.template .env
-```
+- Honcho `.env`가 없으면 `.env.template`에서 생성합니다.
+- Linux에서 Honcho `docker-compose.yml`이 없으면 `docker-compose.yml.example`에서 생성합니다.
+- 기존 `.env` / compose file을 수정하기 전 backup합니다.
+- 생성된 provider block을 검토할 수 있도록 `logs/honcho-env.latest.txt`에 저장합니다.
 
-`./install.sh`는 생성된 `.env` block을 `logs/honcho-env.latest.txt`에 저장합니다. Installer가 Honcho `.env`를 직접 쓰게 하지 않았다면, 평소 `LLM_OPENAI_API_KEY` / `LLM_ANTHROPIC_API_KEY` / `LLM_GEMINI_API_KEY`를 채우는 단계에서 이 block을 Honcho `.env`에 적용하세요.
+일부러 `--write-honcho-env`를 사용하지 않았다면, 평소 `LLM_OPENAI_API_KEY` / `LLM_ANTHROPIC_API_KEY` / `LLM_GEMINI_API_KEY`를 채우는 단계에서 저장된 block을 수동으로 적용하세요.
 
 Minimum shape:
 

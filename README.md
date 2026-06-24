@@ -103,12 +103,12 @@ Correct fresh order:
    - installs gateway Python entrypoints
    - runs Codex OAuth login unless skipped
    - starts the separate gateway + llama.cpp GGUF embedding Docker stack
-   - can create/update Honcho `.env` with `--write-honcho-env --honcho-dir ../honcho`
+   - creates Honcho `.env` from `.env.template` when needed
+   - creates Honcho `docker-compose.yml` from `docker-compose.yml.example` when needed
+   - on Linux, patches Honcho `api` and `deriver` with `host.docker.internal:host-gateway`
    - writes verbose installer output to `logs/install-*.log`
-3. In Honcho, copy docker-compose.yml.example to docker-compose.yml.
-4. Ensure the Linux `host.docker.internal:host-gateway` override is present for Honcho `api` and `deriver`.
-5. Run docker compose up in Honcho.
-6. After Honcho is healthy, run Hermes Honcho setup.
+3. Review Honcho `.env` / `docker-compose.yml`, then run docker compose up in Honcho.
+4. After Honcho is healthy, run Hermes Honcho setup.
 ```
 
 ### Important: embedding dimensions must match from first startup
@@ -138,17 +138,27 @@ license: MIT, inherited from BAAI/bge-m3 and the GGUF model card
 path: <parent-directory>/honcho-codex-gateway/models/bge-m3-FP16.gguf
 ```
 
-If you already have the file locally, you can still place or symlink it before running the installer. To disable automatic model download:
+When run in a terminal, `install.sh` asks which embedding GGUF to use: download the bundled BGE-M3 default, copy an existing local GGUF into `./models/`, or paste a Hugging Face URL. A direct Hugging Face `.gguf` file URL is downloaded immediately; a Hugging Face repo/tree URL lists available `.gguf` files and asks which one to use. Non-Hugging Face URLs are rejected. The selected file is written to `EMBEDDING_GGUF_PATH` so Docker Compose mounts it into the llama.cpp server.
+
+To use flags instead of the interactive menu, pass the model options explicitly. For example:
 
 ```bash
-./install.sh --skip-model-download
+./install.sh --model-file /path/to/embedding-model.gguf --embedding-dimensions auto
+# or, if metadata detection is not available for that file:
+./install.sh --model-file /path/to/embedding-model.gguf --embedding-dimensions 768
 ```
+
+When using a custom `--model-url`, also pass `--model-sha256 SHA256`; use `--model-sha256 ''` only when you intentionally accept downloading without checksum verification.
+
+By default, the installer uses the bundled `bge-m3-fp16` embedding preset and sets `EMBEDDING_VECTOR_DIMENSIONS` from GGUF metadata when possible, falling back to the preset's `1024` dimension.
+
+When `--write-honcho-env` updates an existing Honcho `.env`, the installer refuses to overwrite a different existing `EMBEDDING_VECTOR_DIMENSIONS` value unless `--force-embedding-dimension-change` is provided. Treat that flag as a migration/re-embedding escape hatch, not a normal install option.
 
 Then run:
 
 ```bash
 cd <parent-directory>/honcho-codex-gateway
-./install.sh --write-honcho-env --honcho-dir ../honcho
+sudo ./install.sh
 ```
 
 For installer options:
@@ -157,7 +167,7 @@ For installer options:
 ./install.sh --help
 ```
 
-`--write-honcho-env` creates Honcho `.env` from `.env.template` when needed, or updates an existing `.env` after writing a timestamped `.env.bak.honcho-codex-gateway-*` backup. It only manages the generated gateway-related keys; review the result before starting Honcho.
+`install.sh` auto-detects a sibling Honcho checkout such as `../honcho`. It creates Honcho `.env` from `.env.template` when needed, or updates an existing `.env` after writing a timestamped `.env.bak.honcho-codex-gateway-*` backup. On Linux it also creates Honcho `docker-compose.yml` from `docker-compose.yml.example` when needed, then patches `api` and `deriver` with `host.docker.internal:host-gateway`; existing compose files are backed up before patching. If Honcho is not next to this repository, pass `--honcho-dir /path/to/honcho`; use `--no-write-honcho-env` to opt out. Review both files before starting Honcho.
 
 The installer keeps noisy setup/build output in `logs/install-*.log` and keeps the final console summary focused on the Honcho `.env` location and Codex OAuth status. If the current user cannot access `/var/run/docker.sock`, it prompts with `sudo -v` and runs Docker Compose through `sudo docker compose`.
 
@@ -189,27 +199,27 @@ From Honcho containers, use this OpenAI-compatible base URL:
 http://host.docker.internal:8787/v1
 ```
 
-On Linux, add this provider-networking override to Honcho `api` and `deriver` services in `docker-compose.yml` or a compose override. Linux Docker does not provide `host.docker.internal` consistently unless `host-gateway` is configured. This repository has been developed/tested on Linux; macOS and Windows Docker Desktop have not been tested here:
+On Linux, the installer automatically creates Honcho `docker-compose.yml` from `docker-compose.yml.example` when needed, then adds this provider-networking override to Honcho `api` and `deriver` services when Honcho integration is enabled:
 
 ```yaml
 extra_hosts:
   - "host.docker.internal:host-gateway"
 ```
 
+Linux Docker does not provide `host.docker.internal` consistently unless `host-gateway` is configured. This repository has been developed/tested on Linux; macOS and Windows Docker Desktop have not been tested here. On non-Linux hosts, the installer does not patch Honcho compose automatically.
+
 That is not grafting gateway services into the Honcho stack; it only lets Honcho containers reach the host-local provider URL. Treat this Linux override as required for the documented setup unless your Docker environment already resolves `host.docker.internal` correctly.
 
-### 3. Convert Honcho `.env.template` to `.env` with gateway settings
+### 3. Review generated Honcho files
 
-Now prepare Honcho, but **do not run `docker compose up` until after this edit**. If you used `--write-honcho-env --honcho-dir <parent-directory>/honcho`, the gateway block has already been applied and a backup was written for any pre-existing `.env`.
+Do **not** run Honcho `docker compose up` before the gateway installer has prepared Honcho config. With the recommended command above, the installer already:
 
-```bash
-cd <parent-directory>/honcho
-cp docker-compose.yml.example docker-compose.yml
-# Only needed if you did not use --write-honcho-env:
-cp .env.template .env
-```
+- creates Honcho `.env` from `.env.template` when missing;
+- creates Honcho `docker-compose.yml` from `docker-compose.yml.example` when missing on Linux;
+- backs up existing `.env` / compose files before modifying them;
+- writes the generated provider block to `logs/honcho-env.latest.txt` for review.
 
-`./install.sh` saves the generated `.env` block to `logs/honcho-env.latest.txt`. Apply that block to Honcho `.env` while you would normally fill `LLM_OPENAI_API_KEY` / `LLM_ANTHROPIC_API_KEY` / `LLM_GEMINI_API_KEY`, unless you let the installer write Honcho `.env` directly.
+If you intentionally did not use `--write-honcho-env`, apply the saved block manually while you would normally fill `LLM_OPENAI_API_KEY` / `LLM_ANTHROPIC_API_KEY` / `LLM_GEMINI_API_KEY`.
 
 Minimum shape:
 

@@ -36,4 +36,4 @@ services:
       - --ubatch-size
       - "8192"
     volumes:
-      - ./models/bge-m3-FP16.gguf:/models/selected.gguf:ro
+      - ${EMBEDDING_GGUF_PATH:-./models/bge-m3-FP16.gguf}:/models/selected.gguf:ro
