@@ -6,6 +6,8 @@
 
 **공지 (2026-06-25): 첫 public networking flow에서는 gateway가 host-local `127.0.0.1:8787`에만 publish된 상태에서 Honcho container가 `host.docker.internal:8787`로 접근하도록 되어 있어, Docker 내부에서 Honcho chat/embedding 요청이 timeout될 수 있었습니다. 이 문제는 두 개의 별도 Compose stack을 `honcho-codex-gateway`라는 shared Docker network로 연결하도록 수정해서 해결했습니다. 이제 Honcho는 `http://codex-gateway:8787/v1`을 사용합니다. 수정 후 Honcho `api` container 내부에서 `http://codex-gateway:8787/health`가 정상 응답하는 것을 확인했습니다.**
 
+**공지 (2026-06-25): BGE-M3 GGUF embedding preset은 이제 Honcho에 full 8192-token model window 대신 `EMBEDDING_MAX_INPUT_TOKENS=7680`을 씁니다. Honcho는 현재 embedding chunk를 `tiktoken`으로 추정하지만 llama.cpp는 GGUF tokenizer로 다시 계산하므로, installer는 `input (...) tokens is too large` 같은 over-limit embedding chunk를 줄이기 위해 512-token safety margin을 둡니다.**
+
 Honcho Codex Gateway는 Codex-backed chat completions와 local GGUF/llama.cpp embeddings를 사용해 self-hosted Honcho를 bootstrap하기 위한 local-only helper입니다.
 
 이 프로젝트는 특히 Hermes-style personal agent memory를 위해 Honcho를 설정할 때, 본인 credential을 사용하는 local single-user experimentation을 의도합니다. Hosted API service, public proxy, credential-sharing tool, 공식 OpenAI API의 production replacement가 아닙니다.
