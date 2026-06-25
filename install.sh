@@ -290,6 +290,18 @@ if [[ "$WRITE_HONCHO_ENV" == "1" && -z "$HONCHO_DIR" ]]; then
   exit 2
 fi
 
+restore_invoking_user_ownership() {
+  if [[ -z "${SUDO_UID:-}" || -z "${SUDO_GID:-}" ]]; then
+    return 0
+  fi
+  local paths=(.env .auth models logs .venv)
+  if [[ "$WRITE_HONCHO_ENV" == "1" && -n "$HONCHO_DIR" ]]; then
+    [[ -e "$HONCHO_DIR/.env" ]] && paths+=("$HONCHO_DIR/.env")
+    [[ -e "$HONCHO_DIR/docker-compose.yml" ]] && paths+=("$HONCHO_DIR/docker-compose.yml")
+  fi
+  chown -R "$SUDO_UID:$SUDO_GID" "${paths[@]}" 2>/dev/null || true
+}
+
 download_model_if_needed() {
   if [[ -n "$MODEL_SOURCE_FILE" ]]; then
     if [[ ! -f "$MODEL_SOURCE_FILE" ]]; then
@@ -407,6 +419,7 @@ patch_honcho_compose_for_linux() {
 }
 
 patch_honcho_compose_for_linux
+restore_invoking_user_ownership
 
 if [[ "$RUN_AUTH" == "1" ]]; then
   echo
@@ -436,6 +449,8 @@ if [[ "$RUN_DOCKER" == "1" ]]; then
 else
   echo "==> Skipping Docker startup."
 fi
+
+restore_invoking_user_ownership
 
 HONCHO_ENV_TARGET="not written; clone Honcho next to this repo, rerun install.sh, or pass --honcho-dir /path/to/honcho"
 HONCHO_COMPOSE_TARGET="not managed; clone Honcho next to this repo, rerun install.sh, or pass --honcho-dir /path/to/honcho on Linux"
