@@ -4,6 +4,8 @@
 
 **Notice (2026-06-25): Since yesterday, the installer had a model path bug that could write `EMBEDDING_GGUF_PATH=models/bge-m3-FP16.gguf` instead of `EMBEDDING_GGUF_PATH=./models/bge-m3-FP16.gguf` when using the base embedding model. This has been fixed and verified by deleting both the `honcho/` checkout and this gateway checkout, cloning them fresh, and installing with the base embedding model successfully.**
 
+**Notice (2026-06-25): The first public networking flow used `host.docker.internal:8787` from Honcho containers while the gateway was published only on host-local `127.0.0.1:8787`, which could make Honcho chat and embedding requests time out from inside Docker. This has been fixed by routing the two separate Compose stacks over a shared Docker network named `honcho-codex-gateway`; Honcho now uses `http://codex-gateway:8787/v1`. The fix was verified from inside the Honcho `api` container with `http://codex-gateway:8787/health`.**
+
 Honcho Codex Gateway is a local-only helper for bootstrapping self-hosted Honcho with Codex-backed chat completions and local GGUF/llama.cpp embeddings.
 
 It is intended for local, single-user experimentation with your own credentials, especially when setting up Honcho for Hermes-style personal agent memory. It is not a hosted API service, public proxy, credential-sharing tool, or production replacement for the official OpenAI API.
