@@ -43,7 +43,7 @@ def test_ensure_honcho_compose_copies_template_when_missing(tmp_path):
     assert (honcho / "docker-compose.yml.example").exists()
 
 
-def test_patch_honcho_compose_adds_linux_host_gateway(tmp_path):
+def test_patch_honcho_compose_attaches_api_and_deriver_to_shared_network(tmp_path):
     compose = tmp_path / "docker-compose.yml"
     compose.write_text(
         "services:\n"
@@ -57,32 +57,36 @@ def test_patch_honcho_compose_adds_linux_host_gateway(tmp_path):
 
     assert patch_honcho_compose(compose) is True
     text = compose.read_text()
-    assert text.count('"host.docker.internal:host-gateway"') == 2
-    assert "  api:\n    extra_hosts:\n      - \"host.docker.internal:host-gateway\"\n    image: honcho-api" in text
-    assert "  deriver:\n    extra_hosts:\n      - \"host.docker.internal:host-gateway\"\n    image: honcho-deriver" in text
+    assert "  api:\n    networks:\n      - default\n      - honcho-codex-gateway\n    image: honcho-api" in text
+    assert "  deriver:\n    networks:\n      - default\n      - honcho-codex-gateway\n    image: honcho-deriver" in text
+    assert "networks:\n  honcho-codex-gateway:\n    external: true\n" in text
     assert list(tmp_path.glob("docker-compose.yml.bak.honcho-codex-gateway-*"))
     assert patch_honcho_compose(compose) is False
-    assert compose.read_text().count('"host.docker.internal:host-gateway"') == 2
+    assert compose.read_text().count("- honcho-codex-gateway") == 2
 
 
-def test_patch_honcho_compose_extends_existing_extra_hosts(tmp_path):
+def test_patch_honcho_compose_extends_existing_networks(tmp_path):
     compose = tmp_path / "docker-compose.yml"
     compose.write_text(
         "services:\n"
         "  api:\n"
-        "    extra_hosts:\n"
-        "      - \"other.local:host-gateway\"\n"
+        "    networks:\n"
+        "      - default\n"
         "    image: honcho-api\n"
         "  deriver:\n"
-        "    extra_hosts:\n"
-        "      - \"host.docker.internal:host-gateway\"\n"
+        "    networks:\n"
+        "      - default\n"
+        "      - honcho-codex-gateway\n"
         "    image: honcho-deriver\n"
+        "networks:\n"
+        "  default:\n"
+        "    driver: bridge\n"
     )
 
     assert patch_honcho_compose(compose) is True
     text = compose.read_text()
-    assert text.count('"host.docker.internal:host-gateway"') == 2
-    assert '"other.local:host-gateway"' in text
+    assert text.count("- honcho-codex-gateway") == 2
+    assert "  default:\n    driver: bridge\n  honcho-codex-gateway:\n    external: true\n" in text
 
 
 def test_hf_direct_blob_url_converts_to_resolve_url():

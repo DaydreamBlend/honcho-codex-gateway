@@ -14,7 +14,7 @@ WRITE_HONCHO_ENV=auto
 NO_WRITE_HONCHO_ENV=0
 FORCE_EMBEDDING_DIMENSION_CHANGE=0
 HONCHO_DIR="${HONCHO_DIR:-}"
-GATEWAY_BASE_URL="http://host.docker.internal:8787/v1"
+GATEWAY_BASE_URL="http://codex-gateway:8787/v1"
 CHAT_MODEL="gpt-5.4-mini"
 EMBEDDING_MODEL="text-embedding-bge-m3"
 EMBEDDING_DIMENSIONS="auto"
@@ -44,7 +44,7 @@ Verbose install output is written to logs/install-*.log so the final console
 summary stays readable.
 
 Options:
-  --gateway-base-url URL       URL Honcho containers should use (default: http://host.docker.internal:8787/v1)
+  --gateway-base-url URL       URL Honcho containers should use (default: http://codex-gateway:8787/v1)
   --chat-model MODEL           Chat model advertised to Honcho (default: gpt-5.4-mini)
   --embedding-preset NAME     Embedding preset (default: bge-m3-fp16; currently the only bundled preset)
   --embedding-model MODEL      Embedding model name for Honcho/gateway (default: text-embedding-bge-m3)
@@ -411,11 +411,7 @@ patch_honcho_compose_for_linux() {
   if [[ "$WRITE_HONCHO_ENV" != "1" || -z "$HONCHO_DIR" ]]; then
     return 0
   fi
-  if [[ "$(uname -s)" != "Linux" ]]; then
-    echo "==> Skipping Honcho host-gateway compose patch: non-Linux host detected ($(uname -s))."
-    return 0
-  fi
-  echo "==> Ensuring Honcho docker-compose.yml exists and api/deriver can reach host.docker.internal on Linux"
+  echo "==> Ensuring Honcho docker-compose.yml exists and api/deriver join the gateway Docker network"
   PYTHONPATH="$ROOT/src" "$PYTHON_BIN" -m honcho_codex_gateway.honcho_compose "$HONCHO_DIR" | tee -a "$LOG_FILE"
 }
 
@@ -475,7 +471,7 @@ Honcho .env:
 
 Honcho docker-compose.yml:
   $HONCHO_COMPOSE_TARGET
-  - On Linux, review the generated/patched host-gateway extra_hosts entries before starting Honcho.
+  - Review the generated/patched shared Docker network entries before starting Honcho.
 
 Embedding model:
   $MODEL_FILE

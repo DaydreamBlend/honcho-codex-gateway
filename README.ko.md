@@ -107,7 +107,7 @@ docker compose up
    - 별도 gateway + llama.cpp GGUF embedding Docker stack을 시작합니다.
    - 필요하면 Honcho `.env`를 `.env.template`에서 생성합니다.
    - 필요하면 Honcho `docker-compose.yml`을 `docker-compose.yml.example`에서 생성합니다.
-   - Linux에서는 Honcho `api`와 `deriver`에 `host.docker.internal:host-gateway`를 patch합니다.
+   - Honcho `api`와 `deriver`를 shared `honcho-codex-gateway` Docker network에 연결합니다.
    - verbose installer output은 `logs/install-*.log`에 기록합니다.
 3. Honcho `.env` / `docker-compose.yml`을 검토한 뒤 Honcho에서 docker compose up을 실행합니다.
 4. Honcho가 healthy가 된 뒤 Hermes Honcho setup을 실행합니다.
@@ -169,7 +169,7 @@ Installer option을 확인하려면:
 ./install.sh --help
 ```
 
-`install.sh`는 `../honcho` 같은 sibling Honcho checkout을 자동으로 감지합니다. 필요할 때 Honcho `.env`를 `.env.template`에서 생성하거나, 기존 `.env`를 timestamped `.env.bak.honcho-codex-gateway-*` backup으로 저장한 뒤 업데이트합니다. Linux에서는 필요할 때 Honcho `docker-compose.yml`도 `docker-compose.yml.example`에서 생성하고, `api`와 `deriver`에 `host.docker.internal:host-gateway`를 patch합니다. 기존 compose file은 patch 전에 backup합니다. Honcho가 이 repo 옆에 없다면 `--honcho-dir /path/to/honcho`를 사용하고, 자동 Honcho 수정을 끄려면 `--no-write-honcho-env`를 사용하세요. Honcho를 시작하기 전에 두 파일을 모두 검토하세요.
+`install.sh`는 `../honcho` 같은 sibling Honcho checkout을 자동으로 감지합니다. 필요할 때 Honcho `.env`를 `.env.template`에서 생성하거나, 기존 `.env`를 timestamped `.env.bak.honcho-codex-gateway-*` backup으로 저장한 뒤 업데이트합니다. 필요할 때 Honcho `docker-compose.yml`도 `docker-compose.yml.example`에서 생성하고, `api`와 `deriver`를 shared external `honcho-codex-gateway` Docker network에 연결합니다. 기존 compose file은 patch 전에 backup합니다. Honcho가 이 repo 옆에 없다면 `--honcho-dir /path/to/honcho`를 사용하고, 자동 Honcho 수정을 끄려면 `--no-write-honcho-env`를 사용하세요. Honcho를 시작하기 전에 두 파일을 모두 검토하세요.
 
 Installer는 noisy setup/build output을 `logs/install-*.log`에 보관하고, 마지막 console summary는 Honcho `.env` 위치와 Codex OAuth status 중심으로 짧게 유지합니다. 현재 사용자가 `/var/run/docker.sock`에 접근할 수 없으면 `sudo -v`를 요청하고 `sudo docker compose`로 Docker Compose를 실행합니다.
 
@@ -198,26 +198,35 @@ Bundled llama.cpp embedding server는 BGE-M3 embedding을 위해 8192-token cont
 Honcho container에서는 이 OpenAI-compatible base URL을 사용합니다.
 
 ```text
-http://host.docker.internal:8787/v1
+http://codex-gateway:8787/v1
 ```
 
-Linux에서는 Honcho integration이 활성화되어 있으면 installer가 필요할 때 Honcho `docker-compose.yml`을 `docker-compose.yml.example`에서 생성하고, Honcho `api`와 `deriver` service에 아래 provider-networking override를 자동으로 추가합니다.
+Gateway stack은 `honcho-codex-gateway`라는 shared Docker network를 생성합니다. Honcho integration이 활성화되어 있으면 installer가 필요할 때 Honcho `docker-compose.yml`을 `docker-compose.yml.example`에서 생성하고, Honcho `api`와 `deriver`를 default Honcho network는 유지한 채 이 external network에 추가로 연결합니다.
 
 ```yaml
-extra_hosts:
-  - "host.docker.internal:host-gateway"
+services:
+  api:
+    networks:
+      - default
+      - honcho-codex-gateway
+  deriver:
+    networks:
+      - default
+      - honcho-codex-gateway
+
+networks:
+  honcho-codex-gateway:
+    external: true
 ```
 
-Linux Docker는 `host-gateway`가 설정되어 있지 않으면 `host.docker.internal`을 일관되게 제공하지 않습니다. 이 저장소는 Linux에서 개발/테스트되었습니다. macOS와 Windows Docker Desktop은 여기서 테스트하지 않았습니다. Non-Linux host에서는 installer가 Honcho compose를 자동 patch하지 않습니다.
-
-이것은 gateway service를 Honcho stack에 grafting하는 것이 아닙니다. Honcho container가 host-local provider URL에 접근할 수 있게 해주는 설정일 뿐입니다. Docker 환경이 이미 `host.docker.internal`을 올바르게 resolve하지 않는 한, 문서화된 Linux setup에서는 이 override를 required로 취급하세요.
+이것은 gateway service를 Honcho stack에 grafting하는 것이 아닙니다. 두 개의 별도 Compose stack이 Docker service DNS name으로 통신하게 하는 설정입니다. Gateway는 host smoke test를 위해 계속 `127.0.0.1:8787`에 publish되지만, Honcho container는 `host.docker.internal` 대신 shared network의 `http://codex-gateway:8787/v1`을 사용해야 합니다.
 
 ### 3. 생성된 Honcho file 검토
 
 Gateway installer가 Honcho config를 준비하기 전에는 Honcho `docker compose up`을 실행하지 마세요. 위 추천 명령을 사용하면 installer가 이미 다음을 처리합니다.
 
 - Honcho `.env`가 없으면 `.env.template`에서 생성합니다.
-- Linux에서 Honcho `docker-compose.yml`이 없으면 `docker-compose.yml.example`에서 생성합니다.
+- Honcho `docker-compose.yml`이 없으면 `docker-compose.yml.example`에서 생성합니다.
 - 기존 `.env` / compose file을 수정하기 전 backup합니다.
 - 생성된 provider block을 검토할 수 있도록 `logs/honcho-env.latest.txt`에 저장합니다.
 
@@ -230,13 +239,13 @@ LLM_OPENAI_API_KEY=<gateway-api-key-from-honcho-codex-gateway-.env>
 
 DIALECTIC_LEVELS__minimal__MODEL_CONFIG__TRANSPORT=openai
 DIALECTIC_LEVELS__minimal__MODEL_CONFIG__MODEL=gpt-5.4-mini
-DIALECTIC_LEVELS__minimal__MODEL_CONFIG__OVERRIDES__BASE_URL=http://host.docker.internal:8787/v1
+DIALECTIC_LEVELS__minimal__MODEL_CONFIG__OVERRIDES__BASE_URL=http://codex-gateway:8787/v1
 # dialectic low/medium/high/max, summary, deriver, dream deduction, dream induction에
 # 같은 transport/model/base_url pattern을 반복합니다.
 
 EMBEDDING_MODEL_CONFIG__TRANSPORT=openai
 EMBEDDING_MODEL_CONFIG__MODEL=text-embedding-bge-m3
-EMBEDDING_MODEL_CONFIG__OVERRIDES__BASE_URL=http://host.docker.internal:8787/v1
+EMBEDDING_MODEL_CONFIG__OVERRIDES__BASE_URL=http://codex-gateway:8787/v1
 EMBEDDING_MODEL_CONFIG__OVERRIDES__API_KEY_ENV=LLM_OPENAI_API_KEY
 EMBEDDING_VECTOR_DIMENSIONS=1024
 EMBEDDING_MODEL_CONFIG__DIMENSIONS_MODE=never
@@ -290,9 +299,9 @@ http://localhost:8000
 - Runtime hardware: GB10 기반 MSI EdgeXpert 1TB 모델
 - Honcho upstream Docker compose API port: `127.0.0.1:8000:8000`
 - Gateway Docker compose published port: `127.0.0.1:8787:8787`
-- Honcho container는 위 Linux `host-gateway` override를 통해 `http://host.docker.internal:8787/v1`로 gateway에 접근합니다.
+- Honcho container는 shared `honcho-codex-gateway` Docker network에서 `http://codex-gateway:8787/v1`로 gateway에 접근합니다.
 
-macOS와 Windows Docker Desktop은 `host.docker.internal` 처리 방식이 다를 수 있으며, 이 저장소에서는 아직 테스트하지 않았습니다.
+macOS와 Windows Docker Desktop은 아직 smoke-tested 되지 않았습니다. 문서화된 cross-stack 경로는 `host.docker.internal`이 아니라 Docker network DNS입니다.
 
 ## Smoke tests
 

@@ -172,7 +172,7 @@ def _apply_honcho_env(honcho_dir: Path, env_block: str, *, embedding_dimensions:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Prepare honcho-codex-gateway before fresh Honcho startup")
-    parser.add_argument("--gateway-base-url", default="http://host.docker.internal:8787/v1")
+    parser.add_argument("--gateway-base-url", default="http://codex-gateway:8787/v1")
     parser.add_argument("--chat-model", default="gpt-5.4-mini")
     parser.add_argument("--embedding-model", default="text-embedding-bge-m3")
     parser.add_argument("--embedding-dimensions", default="auto", help="Embedding vector dimensions, or 'auto' to read GGUF metadata")

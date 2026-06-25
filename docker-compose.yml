@@ -14,6 +14,8 @@ services:
     depends_on:
       embedding-server:
         condition: service_started
+    networks:
+      - honcho-codex-gateway
 
   embedding-server:
     image: ghcr.io/ggml-org/llama.cpp:server-cuda
@@ -37,3 +39,9 @@ services:
       - "8192"
     volumes:
       - ${EMBEDDING_GGUF_PATH:-./models/bge-m3-FP16.gguf}:/models/selected.gguf:ro
+    networks:
+      - honcho-codex-gateway
+
+networks:
+  honcho-codex-gateway:
+    name: honcho-codex-gateway

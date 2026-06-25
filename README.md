@@ -107,7 +107,7 @@ Correct fresh order:
    - starts the separate gateway + llama.cpp GGUF embedding Docker stack
    - creates Honcho `.env` from `.env.template` when needed
    - creates Honcho `docker-compose.yml` from `docker-compose.yml.example` when needed
-   - on Linux, patches Honcho `api` and `deriver` with `host.docker.internal:host-gateway`
+   - attaches Honcho `api` and `deriver` to the shared `honcho-codex-gateway` Docker network
    - writes verbose installer output to `logs/install-*.log`
 3. Review Honcho `.env` / `docker-compose.yml`, then run docker compose up in Honcho.
 4. After Honcho is healthy, run Hermes Honcho setup.
@@ -169,7 +169,7 @@ For installer options:
 ./install.sh --help
 ```
 
-`install.sh` auto-detects a sibling Honcho checkout such as `../honcho`. It creates Honcho `.env` from `.env.template` when needed, or updates an existing `.env` after writing a timestamped `.env.bak.honcho-codex-gateway-*` backup. On Linux it also creates Honcho `docker-compose.yml` from `docker-compose.yml.example` when needed, then patches `api` and `deriver` with `host.docker.internal:host-gateway`; existing compose files are backed up before patching. If Honcho is not next to this repository, pass `--honcho-dir /path/to/honcho`; use `--no-write-honcho-env` to opt out. Review both files before starting Honcho.
+`install.sh` auto-detects a sibling Honcho checkout such as `../honcho`. It creates Honcho `.env` from `.env.template` when needed, or updates an existing `.env` after writing a timestamped `.env.bak.honcho-codex-gateway-*` backup. It also creates Honcho `docker-compose.yml` from `docker-compose.yml.example` when needed, then attaches `api` and `deriver` to the shared external `honcho-codex-gateway` Docker network; existing compose files are backed up before patching. If Honcho is not next to this repository, pass `--honcho-dir /path/to/honcho`; use `--no-write-honcho-env` to opt out. Review both files before starting Honcho.
 
 The installer keeps noisy setup/build output in `logs/install-*.log` and keeps the final console summary focused on the Honcho `.env` location and Codex OAuth status. If the current user cannot access `/var/run/docker.sock`, it prompts with `sudo -v` and runs Docker Compose through `sudo docker compose`.
 
@@ -198,26 +198,35 @@ This is intentional: Honcho's generated embedding config uses `MAX_INPUT_TOKENS=
 From Honcho containers, use this OpenAI-compatible base URL:
 
 ```text
-http://host.docker.internal:8787/v1
+http://codex-gateway:8787/v1
 ```
 
-On Linux, the installer automatically creates Honcho `docker-compose.yml` from `docker-compose.yml.example` when needed, then adds this provider-networking override to Honcho `api` and `deriver` services when Honcho integration is enabled:
+The gateway stack creates a shared Docker network named `honcho-codex-gateway`. When Honcho integration is enabled, the installer creates Honcho `docker-compose.yml` from `docker-compose.yml.example` when needed, then attaches Honcho `api` and `deriver` to that external network while preserving their default Honcho network:
 
 ```yaml
-extra_hosts:
-  - "host.docker.internal:host-gateway"
+services:
+  api:
+    networks:
+      - default
+      - honcho-codex-gateway
+  deriver:
+    networks:
+      - default
+      - honcho-codex-gateway
+
+networks:
+  honcho-codex-gateway:
+    external: true
 ```
 
-Linux Docker does not provide `host.docker.internal` consistently unless `host-gateway` is configured. This repository has been developed/tested on Linux; macOS and Windows Docker Desktop have not been tested here. On non-Linux hosts, the installer does not patch Honcho compose automatically.
-
-That is not grafting gateway services into the Honcho stack; it only lets Honcho containers reach the host-local provider URL. Treat this Linux override as required for the documented setup unless your Docker environment already resolves `host.docker.internal` correctly.
+That is not grafting gateway services into the Honcho stack; it only lets the two separate Compose stacks communicate by Docker service DNS name. The gateway remains published to the host on `127.0.0.1:8787` for local smoke tests, but Honcho containers should use `http://codex-gateway:8787/v1` over the shared network instead of `host.docker.internal`.
 
 ### 3. Review generated Honcho files
 
 Do **not** run Honcho `docker compose up` before the gateway installer has prepared Honcho config. With the recommended command above, the installer already:
 
 - creates Honcho `.env` from `.env.template` when missing;
-- creates Honcho `docker-compose.yml` from `docker-compose.yml.example` when missing on Linux;
+- creates Honcho `docker-compose.yml` from `docker-compose.yml.example` when missing;
 - backs up existing `.env` / compose files before modifying them;
 - writes the generated provider block to `logs/honcho-env.latest.txt` for review.
 
@@ -230,13 +239,13 @@ LLM_OPENAI_API_KEY=<gateway-api-key-from-honcho-codex-gateway-.env>
 
 DIALECTIC_LEVELS__minimal__MODEL_CONFIG__TRANSPORT=openai
 DIALECTIC_LEVELS__minimal__MODEL_CONFIG__MODEL=gpt-5.4-mini
-DIALECTIC_LEVELS__minimal__MODEL_CONFIG__OVERRIDES__BASE_URL=http://host.docker.internal:8787/v1
+DIALECTIC_LEVELS__minimal__MODEL_CONFIG__OVERRIDES__BASE_URL=http://codex-gateway:8787/v1
 # repeat same transport/model/base_url pattern for dialectic low/medium/high/max,
 # summary, deriver, dream deduction, and dream induction
 
 EMBEDDING_MODEL_CONFIG__TRANSPORT=openai
 EMBEDDING_MODEL_CONFIG__MODEL=text-embedding-bge-m3
-EMBEDDING_MODEL_CONFIG__OVERRIDES__BASE_URL=http://host.docker.internal:8787/v1
+EMBEDDING_MODEL_CONFIG__OVERRIDES__BASE_URL=http://codex-gateway:8787/v1
 EMBEDDING_MODEL_CONFIG__OVERRIDES__API_KEY_ENV=LLM_OPENAI_API_KEY
 EMBEDDING_VECTOR_DIMENSIONS=1024
 EMBEDDING_MODEL_CONFIG__DIMENSIONS_MODE=never
@@ -290,9 +299,9 @@ This repository has been developed and smoke-tested on Linux only:
 - Runtime hardware: GB10-based MSI EdgeXpert 1TB model
 - Honcho upstream Docker compose API port: `127.0.0.1:8000:8000`
 - Gateway Docker compose published port: `127.0.0.1:8787:8787`
-- Honcho containers reach the gateway through `http://host.docker.internal:8787/v1` with the Linux `host-gateway` override shown above.
+- Honcho containers reach the gateway through `http://codex-gateway:8787/v1` on the shared `honcho-codex-gateway` Docker network.
 
-macOS and Windows Docker Desktop may handle `host.docker.internal` differently and have not been tested for this repository yet.
+macOS and Windows Docker Desktop have not been smoke-tested for this repository yet; the documented cross-stack path is Docker network DNS, not `host.docker.internal`.
 
 ## Smoke tests
 
