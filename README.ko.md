@@ -2,6 +2,8 @@
 
 **언어:** [English](README.md) | 한국어
 
+**공지 (2026-06-25): 어제부터 base embedding model 사용 시 installer가 `EMBEDDING_GGUF_PATH=./models/bge-m3-FP16.gguf` 대신 `EMBEDDING_GGUF_PATH=models/bge-m3-FP16.gguf`처럼 model path의 `./`를 빠뜨릴 수 있는 문제가 있었습니다. 이 문제는 수정되었고, 현재는 `honcho/` checkout과 이 gateway checkout을 모두 삭제한 뒤 새로 clone해서 base embedding model로 설치했을 때 문제 없음을 확인했습니다.**
+
 Honcho Codex Gateway는 Codex-backed chat completions와 local GGUF/llama.cpp embeddings를 사용해 self-hosted Honcho를 bootstrap하기 위한 local-only helper입니다.
 
 이 프로젝트는 특히 Hermes-style personal agent memory를 위해 Honcho를 설정할 때, 본인 credential을 사용하는 local single-user experimentation을 의도합니다. Hosted API service, public proxy, credential-sharing tool, 공식 OpenAI API의 production replacement가 아닙니다.
