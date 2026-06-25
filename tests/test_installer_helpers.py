@@ -8,19 +8,23 @@ from honcho_codex_gateway import hf_gguf
 from honcho_codex_gateway.honcho_compose import ensure_honcho_compose, patch_honcho_compose
 from honcho_codex_gateway.gguf_metadata import detect_embedding_dimensions
 from honcho_codex_gateway.prepare import HONCHO_ENV_TEMPLATE, _apply_honcho_env, _compose_mount_path, _resolve_embedding_dimensions
+from honcho_codex_gateway.honcho_tokenizer_patch import apply_honcho_tokenizer_patch
 
 
-def test_honcho_env_template_uses_bge_m3_token_safety_margin():
+def test_honcho_env_template_uses_gateway_tokenizer_patch_settings():
     block = HONCHO_ENV_TEMPLATE.format(
         gateway_api_key="key",
         gateway_base_url="http://codex-gateway:8787/v1",
+        gateway_tokenizer_base_url="http://codex-gateway:8787",
         chat_model="gpt-5.4-mini",
         embedding_model="text-embedding-bge-m3",
         embedding_dimensions=1024,
-        embedding_max_input_tokens=7680,
+        embedding_max_input_tokens=8192,
     )
 
-    assert "EMBEDDING_MAX_INPUT_TOKENS=7680" in block
+    assert "EMBEDDING_MAX_INPUT_TOKENS=8192" in block
+    assert "EMBEDDING_TOKENIZER_PROVIDER=gateway" in block
+    assert "EMBEDDING_TOKENIZER_BASE_URL=http://codex-gateway:8787" in block
 
 
 def _write_fake_gguf(path: Path, *, key: str = "bert.embedding_length", value: int = 1024) -> None:
@@ -173,3 +177,46 @@ def test_apply_honcho_env_allows_same_dimension(tmp_path):
     assert "EMBEDDING_VECTOR_DIMENSIONS=1024" in text
     assert "EMBEDDING_MODEL_CONFIG__MODEL=text-embedding-bge-m3" in text
     assert list(honcho.glob(".env.bak.honcho-codex-gateway-*"))
+
+
+
+def test_apply_honcho_tokenizer_patch_is_idempotent(tmp_path):
+    honcho = tmp_path / "honcho"
+    src = honcho / "src"
+    src.mkdir(parents=True)
+    (honcho / ".env").write_text("LLM_OPENAI_API_KEY=local\n")
+    (src / "embedding_client.py").write_text(
+        "from typing import Any, Literal, NamedTuple, TypeVar\n"
+        "class _EmbeddingClient:\n"
+        "    def embed(self, query):\n"
+        "        token_count = len(self.encoding.encode(query))\n"
+        "    def simple_batch_embed(self, texts):\n"
+        "        for text in texts:\n"
+        "            tokens = len(self.encoding.encode(text))\n"
+        "    def _prepare_chunks(self, id_resource_dict):\n"
+        "        out: dict[str, list[tuple[str, int]]] = {}\n"
+        "        for text_id, text in id_resource_dict.items():\n"
+        "            tokens = self.encoding.encode(text)\n"
+        "            if len(tokens) > self.max_embedding_tokens:\n"
+        "                out[text_id] = _chunk_text_with_tokens(\n"
+        "                    text, tokens, self.max_embedding_tokens, self.encoding\n"
+        "                )\n"
+        "            else:\n"
+        "                out[text_id] = [(text, len(tokens))]\n"
+        "        return out\n"
+        "class BatchItem(NamedTuple):\n"
+        "    text: str\n"
+    )
+
+    first = apply_honcho_tokenizer_patch(honcho)
+    second = apply_honcho_tokenizer_patch(honcho)
+
+    patched = (src / "embedding_client.py").read_text()
+    env = (honcho / ".env").read_text()
+    assert first["patched"] is True
+    assert second["patched"] is False
+    assert "HONCHO_CODEX_GATEWAY_TOKENIZER_PATCH_V1" in patched
+    assert "_split_text_by_gateway_tokens" in patched
+    assert "EMBEDDING_TOKENIZER_PROVIDER=gateway" in env
+    assert "EMBEDDING_MAX_INPUT_TOKENS=8192" in env
+    assert len(list(src.glob("embedding_client.py.bak.honcho-codex-gateway-*"))) == 1

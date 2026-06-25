@@ -14,7 +14,7 @@ from .chat_bridge import (
     StreamingNotSupportedError,
 )
 from .config import GatewayConfig, load_config
-from .embeddings import EmbeddingBackendError, EmbeddingRequest, proxy_embeddings
+from .embeddings import EmbeddingBackendError, EmbeddingRequest, TokenCountRequest, proxy_embeddings, proxy_token_count
 from .live_codex_client import CodexAdapterLiveError, CodexLiveClient
 
 
@@ -89,6 +89,13 @@ def create_app(*, bridge: CodexChatBridge | None = None, config: GatewayConfig |
             status_code=501,
             detail="Direct /v1/responses facade is reserved; use /v1/chat/completions for now.",
         )
+
+    @app.post("/internal/token-count", dependencies=[Depends(require_auth)])
+    async def token_count(request: TokenCountRequest) -> dict[str, Any]:
+        try:
+            return await proxy_token_count(request, config=resolved_config)
+        except EmbeddingBackendError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
     @app.post("/v1/embeddings", dependencies=[Depends(require_auth)])
     async def embeddings(request: EmbeddingRequest) -> dict[str, Any]:

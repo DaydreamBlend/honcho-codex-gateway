@@ -7,7 +7,7 @@ cd "$ROOT"
 PROJECT_NAME="honcho-codex-gateway"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 RUN_AUTH=1
-RUN_DOCKER=1
+RUN_DOCKER=0
 PRINT_ONLY=0
 INTERACTIVE_MODE=auto
 WRITE_HONCHO_ENV=auto
@@ -38,8 +38,8 @@ Usage: ./install.sh [options]
 
 Gateway-first installer for Honcho's Docker quick install.
 Run this before `docker compose up` in the Honcho checkout. It prepares the
-gateway, optionally runs Codex OAuth, optionally starts the separate Docker
-stack, and prepares the Honcho .env values needed before Honcho startup.
+gateway, runs Codex OAuth unless skipped, patches Honcho configuration, and
+then prints the Docker Compose startup commands to run manually.
 Verbose install output is written to logs/install-*.log so the final console
 summary stays readable.
 
@@ -62,16 +62,16 @@ Options:
   --interactive                Ask which embedding GGUF to use even when stdin is not a TTY
   --non-interactive            Do not prompt; use options/defaults only
   --skip-auth                  Do not run Codex OAuth login
+  --start-docker               Also start the gateway Docker stack from the installer (default: print commands only)
   --print-only                 Only print Honcho .env block; do not write/start anything
   -h, --help                   Show this help
 
 Fresh Docker quick-install order after this script:
   1. Clone Honcho and this gateway as sibling directories.
   2. Run this installer with: sudo ./install.sh
-  3. Review Honcho .env / docker-compose.yml and OAuth status shown in the final summary.
-  4. In the gateway folder first: sudo docker compose up -d
-  5. Then in the Honcho folder: sudo docker compose up -d
-  6. Run Hermes Honcho setup after Honcho is healthy.
+  3. Complete Codex OAuth when prompted.
+  4. In the gateway folder first: sudo docker compose up -d --build
+  5. Then in the Honcho folder: sudo docker compose up -d --build
 EOF
 }
 
@@ -94,6 +94,7 @@ while [[ $# -gt 0 ]]; do
     --interactive) INTERACTIVE_MODE=1; shift ;;
     --non-interactive) INTERACTIVE_MODE=0; shift ;;
     --skip-auth) RUN_AUTH=0; shift ;;
+    --start-docker) RUN_DOCKER=1; shift ;;
     --print-only) PRINT_ONLY=1; RUN_AUTH=0; RUN_DOCKER=0; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage; exit 2 ;;
@@ -416,6 +417,16 @@ patch_honcho_compose_for_linux() {
 }
 
 patch_honcho_compose_for_linux
+
+apply_honcho_tokenizer_patch() {
+  if [[ "$WRITE_HONCHO_ENV" != "1" || -z "$HONCHO_DIR" ]]; then
+    return 0
+  fi
+  echo "==> Applying/reapplying Honcho GGUF tokenizer chunking patch"
+  PYTHONPATH="$ROOT/src" "$PYTHON_BIN" -m honcho_codex_gateway.honcho_tokenizer_patch "$HONCHO_DIR" --base-url "${GATEWAY_BASE_URL%/v1}" --max-input-tokens 8192 | tee -a "$LOG_FILE"
+}
+
+apply_honcho_tokenizer_patch
 restore_invoking_user_ownership
 
 if [[ "$RUN_AUTH" == "1" ]]; then
@@ -444,7 +455,7 @@ if [[ "$RUN_DOCKER" == "1" ]]; then
   echo "==> Gateway health probe"
   curl -fsS http://127.0.0.1:8787/health >>"$LOG_FILE" 2>&1 || true
 else
-  echo "==> Skipping Docker startup."
+  echo "==> Docker startup is manual by default; commands are printed below."
 fi
 
 restore_invoking_user_ownership
@@ -485,12 +496,12 @@ OAuth:
     CODEX_AUTH_DIR="$ROOT/.auth" honcho-codex-auth login --no-browser
 
 Next:
-  # Start or refresh the gateway stack first from this folder:
+  # 1. Start or refresh the gateway stack first from this folder:
   cd "$ROOT"
-  sudo docker compose up -d
+  sudo docker compose up -d --build
 
-  # Then start Honcho from the original Honcho checkout:
+  # 2. Then start Honcho from the original Honcho checkout:
   cd "${HONCHO_DIR:-/path/to/honcho}"
-  sudo docker compose up -d
+  sudo docker compose up -d --build
 
 EOF

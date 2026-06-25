@@ -6,7 +6,7 @@
 
 **Notice (2026-06-25): The first public networking flow used `host.docker.internal:8787` from Honcho containers while the gateway was published only on host-local `127.0.0.1:8787`, which could make Honcho chat and embedding requests time out from inside Docker. This has been fixed by routing the two separate Compose stacks over a shared Docker network named `honcho-codex-gateway`; Honcho now uses `http://codex-gateway:8787/v1`. The fix was verified from inside the Honcho `api` container with `http://codex-gateway:8787/health`.**
 
-**Notice (2026-06-25): The BGE-M3 GGUF embedding preset now writes `EMBEDDING_MAX_INPUT_TOKENS=7680` for Honcho instead of using the full 8192-token model window. Honcho currently estimates embedding chunks with `tiktoken`, while llama.cpp counts with the GGUF tokenizer, so the installer keeps a 512-token safety margin to reduce over-limit embedding chunks such as `input (...) tokens is too large`.**
+**Notice (2026-06-25): The BGE-M3 GGUF embedding preset now applies a small reversible Honcho tokenizer patch and writes `EMBEDDING_TOKENIZER_PROVIDER=gateway`. Honcho then asks this gateway for llama.cpp/GGUF token counts before chunking, so it can use `EMBEDDING_MAX_INPUT_TOKENS=8192` without relying on `tiktoken` estimates that can under-count log-heavy inputs. The installer reapplies the patch idempotently, so rerunning it after a Honcho update restores the patch if upstream files were replaced.**
 
 Honcho Codex Gateway is a local-only helper for bootstrapping self-hosted Honcho with Codex-backed chat completions and local GGUF/llama.cpp embeddings.
 
@@ -78,43 +78,32 @@ This repository is licensed under **AGPL-3.0-or-later**. The license is chosen t
 
 See `NOTICE.md` for attribution and provenance details.
 
-## Install: Honcho Docker quick install, gateway first
+## Install: fresh Honcho + gateway setup
 
-This project is designed to fit Honcho's Docker quick install:
+Clone Honcho and this gateway as sibling directories, then run the gateway installer once:
 
 ```bash
 git clone https://github.com/plastic-labs/honcho.git
-cd honcho
-cp docker-compose.yml.example docker-compose.yml
-cp .env.template .env       # normally fill in LLM_* keys here
-docker compose up
+git clone https://github.com/DaydreamBlend/honcho-codex-gateway.git
+cd honcho-codex-gateway
+sudo ./install.sh
 ```
 
-The only change is the order: **clone both repos, start and authenticate the gateway first, then edit Honcho `.env`, and finally run `docker compose up` in the Honcho repo.**
+During `sudo ./install.sh`:
 
-Recommended sibling layout:
+1. Choose the embedding GGUF model.
+2. Complete the Codex OAuth login when prompted.
+3. The installer prepares gateway files, writes Honcho `.env`, patches Honcho `docker-compose.yml`, and applies the reversible Honcho tokenizer patch.
+4. The installer exits after printing the Docker Compose startup order.
 
-```text
-<parent-directory>/
-  honcho/
-  honcho-codex-gateway/
-```
+Run the printed commands in order:
 
-Correct fresh order:
+```bash
+cd <parent-directory>/honcho-codex-gateway
+sudo docker compose up -d --build
 
-```text
-1. Clone Honcho and honcho-codex-gateway as sibling directories.
-2. Run honcho-codex-gateway/install.sh first.
-   - prepares gateway .env/.auth/models
-   - installs gateway Python entrypoints
-   - runs Codex OAuth login unless skipped
-   - starts the separate gateway + llama.cpp GGUF embedding Docker stack
-   - creates Honcho `.env` from `.env.template` when needed
-   - creates Honcho `docker-compose.yml` from `docker-compose.yml.example` when needed
-   - attaches Honcho `api` and `deriver` to the shared `honcho-codex-gateway` Docker network
-   - writes verbose installer output to `logs/install-*.log`
-3. Review Honcho `.env` / `docker-compose.yml`, then run docker compose up in Honcho.
-4. After Honcho is healthy, run Hermes Honcho setup.
+cd <parent-directory>/honcho
+sudo docker compose up -d --build
 ```
 
 ### Important: embedding dimensions must match from first startup
@@ -197,7 +186,7 @@ The bundled llama.cpp embedding server is started with an 8192-token context win
 --ubatch-size 8192
 ```
 
-This is intentional: BGE-M3 supports an 8192-token context window, while Honcho currently estimates embedding chunks with `tiktoken`. The installer therefore writes `EMBEDDING_MAX_INPUT_TOKENS=7680` (8192 minus a 512-token safety margin) so tokenizer mismatches are less likely to send over-limit chunks to llama.cpp.
+This is intentional: BGE-M3 supports an 8192-token context window, but upstream Honcho currently estimates embedding chunks with `tiktoken`. The installer applies a small reversible Honcho patch so chunking calls the gateway `/internal/token-count` endpoint, which proxies llama.cpp/GGUF tokenization. With backend-aware chunking enabled, the generated Honcho config uses `EMBEDDING_MAX_INPUT_TOKENS=8192` plus `EMBEDDING_TOKENIZER_PROVIDER=gateway` instead of a conservative tiktoken-only margin.
 
 From Honcho containers, use this OpenAI-compatible base URL:
 
@@ -252,7 +241,10 @@ EMBEDDING_MODEL_CONFIG__MODEL=text-embedding-bge-m3
 EMBEDDING_MODEL_CONFIG__OVERRIDES__BASE_URL=http://codex-gateway:8787/v1
 EMBEDDING_MODEL_CONFIG__OVERRIDES__API_KEY_ENV=LLM_OPENAI_API_KEY
 EMBEDDING_VECTOR_DIMENSIONS=1024
-EMBEDDING_MAX_INPUT_TOKENS=7680
+EMBEDDING_MAX_INPUT_TOKENS=8192
+EMBEDDING_TOKENIZER_PROVIDER=gateway
+EMBEDDING_TOKENIZER_BASE_URL=http://codex-gateway:8787
+EMBEDDING_TOKENIZER_API_KEY_ENV=LLM_OPENAI_API_KEY
 EMBEDDING_MODEL_CONFIG__DIMENSIONS_MODE=never
 ```
 

@@ -60,6 +60,9 @@ EMBEDDING_MODEL_CONFIG__OVERRIDES__BASE_URL={gateway_base_url}
 EMBEDDING_MODEL_CONFIG__OVERRIDES__API_KEY_ENV=LLM_OPENAI_API_KEY
 EMBEDDING_VECTOR_DIMENSIONS={embedding_dimensions}
 EMBEDDING_MAX_INPUT_TOKENS={embedding_max_input_tokens}
+EMBEDDING_TOKENIZER_PROVIDER=gateway
+EMBEDDING_TOKENIZER_BASE_URL={gateway_tokenizer_base_url}
+EMBEDDING_TOKENIZER_API_KEY_ENV=LLM_OPENAI_API_KEY
 EMBEDDING_MODEL_CONFIG__DIMENSIONS_MODE=never
 """
 
@@ -177,7 +180,7 @@ def main() -> None:
     parser.add_argument("--chat-model", default="gpt-5.4-mini")
     parser.add_argument("--embedding-model", default="text-embedding-bge-m3")
     parser.add_argument("--embedding-dimensions", default="auto", help="Embedding vector dimensions, or 'auto' to read GGUF metadata")
-    parser.add_argument("--embedding-max-input-tokens", default=7680, type=int, help="Honcho embedding chunk cap; default is BGE-M3 8192 minus a 512-token tokenizer safety margin")
+    parser.add_argument("--embedding-max-input-tokens", default=8192, type=int, help="Honcho embedding chunk cap. With the tokenizer patch enabled, the default can match BGE-M3's 8192-token GGUF limit")
     parser.add_argument("--embedding-gguf", type=Path, default=ROOT / "models" / "bge-m3-FP16.gguf", help="GGUF file used for --embedding-dimensions auto")
     parser.add_argument("--embedding-dimensions-fallback", default=1024, type=int, help="Fallback dimension for the bundled default preset when auto-detection cannot run")
     parser.add_argument("--force-embedding-dimension-change", action="store_true", help="Allow rewriting an existing Honcho .env with a different EMBEDDING_VECTOR_DIMENSIONS value")
@@ -209,6 +212,7 @@ def main() -> None:
         embedding_model=args.embedding_model,
         embedding_dimensions=resolved_embedding_dimensions,
         embedding_max_input_tokens=args.embedding_max_input_tokens,
+        gateway_tokenizer_base_url=args.gateway_base_url.rstrip("/").removesuffix("/v1"),
     )
     honcho_env_block = HONCHO_ENV_TEMPLATE.format(**values)
     if args.write_honcho_env:

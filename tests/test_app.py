@@ -39,3 +39,10 @@ def test_embeddings_disabled_returns_501():
     client = TestClient(app)
     response = client.post("/v1/embeddings", json={"model": "text-embedding-bge-m3", "input": "ping"})
     assert response.status_code == 501
+
+
+def test_internal_token_count_disabled_returns_501():
+    app = create_app(config=GatewayConfig(mode="fake", embedding_backend="disabled"))
+    client = TestClient(app)
+    response = client.post("/internal/token-count", json={"model": "text-embedding-bge-m3", "input": "ping"})
+    assert response.status_code == 501
