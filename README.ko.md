@@ -187,15 +187,15 @@ Host에는 gateway만 localhost로 publish합니다.
 http://127.0.0.1:8787
 ```
 
-Bundled llama.cpp embedding server는 BGE-M3 embedding을 위해 8192-token context window와 더 큰 physical batch size로 시작합니다. 이렇게 해야 8192 근처의 chunk가 tokenizer 차이로 조금 더 크게 계산되어도 reconciliation이 실패하지 않습니다.
+Bundled llama.cpp embedding server는 BGE-M3 embedding을 위해 8192-token context window로 시작합니다.
 
 ```text
 --ctx-size 8192
---batch-size 16384
---ubatch-size 16384
+--batch-size 8192
+--ubatch-size 8192
 ```
 
-이 설정은 의도된 것입니다. Honcho에 생성되는 embedding config가 `MAX_INPUT_TOKENS=8192`를 사용하므로, embedding server context window가 4096 같은 더 작은 default로 남아 있으면 안 됩니다. Physical batch size는 llama.cpp가 일부 reconciler chunk를 8192보다 약간 크게 계산할 수 있어 nominal context window보다 크게 둡니다.
+이 설정은 의도된 것입니다. BGE-M3는 8192-token context window를 지원하지만, Honcho는 현재 embedding chunk를 `tiktoken`으로 추정합니다. 따라서 installer는 tokenizer mismatch 때문에 llama.cpp에 over-limit chunk가 들어갈 가능성을 줄이기 위해 `EMBEDDING_MAX_INPUT_TOKENS=7680`을 씁니다. 즉 8192에서 512-token safety margin을 뺀 값입니다.
 
 Honcho container에서는 이 OpenAI-compatible base URL을 사용합니다.
 
@@ -250,6 +250,7 @@ EMBEDDING_MODEL_CONFIG__MODEL=text-embedding-bge-m3
 EMBEDDING_MODEL_CONFIG__OVERRIDES__BASE_URL=http://codex-gateway:8787/v1
 EMBEDDING_MODEL_CONFIG__OVERRIDES__API_KEY_ENV=LLM_OPENAI_API_KEY
 EMBEDDING_VECTOR_DIMENSIONS=1024
+EMBEDDING_MAX_INPUT_TOKENS=7680
 EMBEDDING_MODEL_CONFIG__DIMENSIONS_MODE=never
 ```
 

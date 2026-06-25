@@ -187,15 +187,15 @@ It publishes only the gateway on localhost:
 http://127.0.0.1:8787
 ```
 
-The bundled llama.cpp embedding server is started with an 8192-token context window for BGE-M3 embeddings and a larger physical batch size so borderline chunks that tokenize slightly above 8192 do not fail reconciliation:
+The bundled llama.cpp embedding server is started with an 8192-token context window for BGE-M3 embeddings:
 
 ```text
 --ctx-size 8192
---batch-size 16384
---ubatch-size 16384
+--batch-size 8192
+--ubatch-size 8192
 ```
 
-This is intentional: Honcho's generated embedding config uses `MAX_INPUT_TOKENS=8192`, so the embedding server context window must not remain at a smaller default such as 4096. The physical batch size is higher than the nominal context window because llama.cpp may count some reconciler chunks slightly above 8192 tokens.
+This is intentional: BGE-M3 supports an 8192-token context window, while Honcho currently estimates embedding chunks with `tiktoken`. The installer therefore writes `EMBEDDING_MAX_INPUT_TOKENS=7680` (8192 minus a 512-token safety margin) so tokenizer mismatches are less likely to send over-limit chunks to llama.cpp.
 
 From Honcho containers, use this OpenAI-compatible base URL:
 
@@ -250,6 +250,7 @@ EMBEDDING_MODEL_CONFIG__MODEL=text-embedding-bge-m3
 EMBEDDING_MODEL_CONFIG__OVERRIDES__BASE_URL=http://codex-gateway:8787/v1
 EMBEDDING_MODEL_CONFIG__OVERRIDES__API_KEY_ENV=LLM_OPENAI_API_KEY
 EMBEDDING_VECTOR_DIMENSIONS=1024
+EMBEDDING_MAX_INPUT_TOKENS=7680
 EMBEDDING_MODEL_CONFIG__DIMENSIONS_MODE=never
 ```
 

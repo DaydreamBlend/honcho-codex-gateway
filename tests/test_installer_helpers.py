@@ -7,7 +7,20 @@ import pytest
 from honcho_codex_gateway import hf_gguf
 from honcho_codex_gateway.honcho_compose import ensure_honcho_compose, patch_honcho_compose
 from honcho_codex_gateway.gguf_metadata import detect_embedding_dimensions
-from honcho_codex_gateway.prepare import _apply_honcho_env, _compose_mount_path, _resolve_embedding_dimensions
+from honcho_codex_gateway.prepare import HONCHO_ENV_TEMPLATE, _apply_honcho_env, _compose_mount_path, _resolve_embedding_dimensions
+
+
+def test_honcho_env_template_uses_bge_m3_token_safety_margin():
+    block = HONCHO_ENV_TEMPLATE.format(
+        gateway_api_key="key",
+        gateway_base_url="http://codex-gateway:8787/v1",
+        chat_model="gpt-5.4-mini",
+        embedding_model="text-embedding-bge-m3",
+        embedding_dimensions=1024,
+        embedding_max_input_tokens=7680,
+    )
+
+    assert "EMBEDDING_MAX_INPUT_TOKENS=7680" in block
 
 
 def _write_fake_gguf(path: Path, *, key: str = "bert.embedding_length", value: int = 1024) -> None:

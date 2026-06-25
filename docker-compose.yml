@@ -34,9 +34,9 @@ services:
       - --port
       - "8080"
       - --batch-size
-      - "16384"
+      - "8192"
       - --ubatch-size
-      - "16384"
+      - "8192"
     volumes:
       - ${EMBEDDING_GGUF_PATH:-./models/bge-m3-FP16.gguf}:/models/selected.gguf:ro
     networks:
