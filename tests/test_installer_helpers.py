@@ -7,7 +7,7 @@ import pytest
 from honcho_codex_gateway import hf_gguf
 from honcho_codex_gateway.honcho_compose import ensure_honcho_compose, patch_honcho_compose
 from honcho_codex_gateway.gguf_metadata import detect_embedding_dimensions
-from honcho_codex_gateway.prepare import _apply_honcho_env, _resolve_embedding_dimensions
+from honcho_codex_gateway.prepare import _apply_honcho_env, _compose_mount_path, _resolve_embedding_dimensions
 
 
 def _write_fake_gguf(path: Path, *, key: str = "bert.embedding_length", value: int = 1024) -> None:
@@ -113,6 +113,12 @@ def test_detect_embedding_dimensions_from_gguf_metadata(tmp_path):
 
 def test_resolve_embedding_dimensions_uses_fallback_when_model_missing(tmp_path):
     assert _resolve_embedding_dimensions("auto", tmp_path / "missing.gguf", preset_fallback=1024) == 1024
+
+
+def test_compose_mount_path_keeps_model_path_project_relative():
+    assert _compose_mount_path(Path("models/bge-m3-FP16.gguf")) == "./models/bge-m3-FP16.gguf"
+    assert _compose_mount_path(Path("./models/bge-m3-FP16.gguf")) == "./models/bge-m3-FP16.gguf"
+    assert _compose_mount_path(Path("../models/custom.gguf")) == "../models/custom.gguf"
 
 
 def test_apply_honcho_env_refuses_partial_env_without_template(tmp_path):

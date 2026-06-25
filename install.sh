@@ -69,8 +69,9 @@ Fresh Docker quick-install order after this script:
   1. Clone Honcho and this gateway as sibling directories.
   2. Run this installer with: sudo ./install.sh
   3. Review Honcho .env / docker-compose.yml and OAuth status shown in the final summary.
-  4. In Honcho: docker compose up
-  5. Run Hermes Honcho setup after Honcho is healthy.
+  4. In the gateway folder first: sudo docker compose up -d
+  5. Then in the Honcho folder: sudo docker compose up -d
+  6. Run Hermes Honcho setup after Honcho is healthy.
 EOF
 }
 
@@ -488,7 +489,12 @@ OAuth:
     CODEX_AUTH_DIR="$ROOT/.auth" honcho-codex-auth login --no-browser
 
 Next:
-  cd /path/to/honcho
-  docker compose up
+  # Start or refresh the gateway stack first from this folder:
+  cd "$ROOT"
+  sudo docker compose up -d
+
+  # Then start Honcho from the original Honcho checkout:
+  cd "${HONCHO_DIR:-/path/to/honcho}"
+  sudo docker compose up -d
 
 EOF

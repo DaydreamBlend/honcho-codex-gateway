@@ -81,6 +81,15 @@ def _upsert_line(text: str, key: str, value: str) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _compose_mount_path(path: Path) -> str:
+    """Return a Docker Compose .env path that is explicitly project-relative."""
+
+    raw = str(path)
+    if path.is_absolute() or raw.startswith("./") or raw.startswith("../"):
+        return raw
+    return f"./{raw}"
+
+
 def _parse_env_value(text: str, key: str) -> str | None:
     prefix = f"{key}="
     for raw_line in text.splitlines():
@@ -222,7 +231,7 @@ def main() -> None:
         env_text = _upsert_line(env_text, "CODEX_GATEWAY_MODE", args.mode)
         env_text = _upsert_line(env_text, "GATEWAY_API_KEY", gateway_api_key)
         env_text = _upsert_line(env_text, "EMBEDDING_MODEL", args.embedding_model)
-        env_text = _upsert_line(env_text, "EMBEDDING_GGUF_PATH", str(args.embedding_gguf))
+        env_text = _upsert_line(env_text, "EMBEDDING_GGUF_PATH", _compose_mount_path(args.embedding_gguf))
         env_text = _upsert_line(env_text, "CODEX_AUTH_DIR", "/data/codex-auth")
         ENV_PATH.write_text(env_text)
         ENV_PATH.chmod(0o600)
