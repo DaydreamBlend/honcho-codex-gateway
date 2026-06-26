@@ -250,6 +250,8 @@ curl -sS -X POST http://127.0.0.1:8000/v3/workspaces/hermes/peers/honcho-codex-s
 
 이 저장소는 AGPL-3.0-or-later로 라이선스됩니다. Honcho의 AGPL-3.0 codebase와 호환성을 유지하면서 MIT-licensed Hermes-derived OAuth/auth pattern을 combined work의 일부로 재배포할 수 있도록 이 라이선스를 사용합니다.
 
+이 프로젝트의 Codex OAuth/auth handling은 Nous Research의 MIT-licensed Hermes Agent에 있는 OpenAI Codex OAuth code pattern을 참고하고 일부 조정해 사용합니다.
+
 이 프로젝트는 OpenAI, Honcho, Hermes Agent, Nous Research, Plastic Labs의 공식 프로젝트가 아닙니다.
 
 이 저장소의 일부 코드와 문서 초안은 maintainer 검토하에 AI 도움을 받아 작성 또는 수정되었습니다. Attribution과 provenance detail은 `NOTICE.md`를 참고하세요.

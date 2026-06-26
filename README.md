@@ -250,6 +250,8 @@ curl -sS -X POST http://127.0.0.1:8000/v3/workspaces/hermes/peers/honcho-codex-s
 
 This repository is licensed under AGPL-3.0-or-later. The license is chosen to stay compatible with Honcho's AGPL-3.0 codebase while allowing MIT-licensed Hermes-derived OAuth/auth patterns to be redistributed as part of the combined work.
 
+The Codex OAuth/auth handling in this project references and adapts patterns from Hermes Agent's OpenAI Codex OAuth code. Hermes Agent is an MIT-licensed project by Nous Research.
+
 This is not an official OpenAI, Honcho, Hermes Agent, Nous Research, or Plastic Labs project.
 
 Parts of this repository, including documentation drafts, were generated or edited with AI assistance under maintainer review. See `NOTICE.md` for attribution and provenance details.
