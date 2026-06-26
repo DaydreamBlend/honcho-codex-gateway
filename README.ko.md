@@ -2,85 +2,55 @@
 
 **언어:** [English](README.md) | 한국어
 
-**공지 (2026-06-25): 어제부터 base embedding model 사용 시 installer가 `EMBEDDING_GGUF_PATH=./models/bge-m3-FP16.gguf` 대신 `EMBEDDING_GGUF_PATH=models/bge-m3-FP16.gguf`처럼 model path의 `./`를 빠뜨릴 수 있는 문제가 있었습니다. 이 문제는 수정되었고, 현재는 `honcho/` checkout과 이 gateway checkout을 모두 삭제한 뒤 새로 clone해서 base embedding model로 설치했을 때 문제 없음을 확인했습니다.**
+Honcho Codex Gateway는 self-hosted Honcho를 Codex-backed chat completions와 local GGUF embeddings로 실행하기 위한 local gateway입니다.
 
-**공지 (2026-06-25): 첫 public networking flow에서는 gateway가 host-local `127.0.0.1:8787`에만 publish된 상태에서 Honcho container가 `host.docker.internal:8787`로 접근하도록 되어 있어, Docker 내부에서 Honcho chat/embedding 요청이 timeout될 수 있었습니다. 이 문제는 두 개의 별도 Compose stack을 `honcho-codex-gateway`라는 shared Docker network로 연결하도록 수정해서 해결했습니다. 이제 Honcho는 `http://codex-gateway:8787/v1`을 사용합니다. 수정 후 Honcho `api` container 내부에서 `http://codex-gateway:8787/health`가 정상 응답하는 것을 확인했습니다.**
+목표 범위는 좁습니다. Honcho Docker quick install, 사용자 본인의 Codex OAuth login을 쓰는 chat route, 그리고 BGE-M3 또는 다른 GGUF embedding model을 돌리는 local llama.cpp embedding server입니다. Hosted API service나 범용 OpenAI-compatible proxy가 아닙니다.
 
-**공지 (2026-06-25): BGE-M3 GGUF embedding preset은 이제 작은 reversible Honcho tokenizer patch를 적용하고 `EMBEDDING_TOKENIZER_PROVIDER=gateway`를 씁니다. Honcho가 chunking 전에 이 gateway에 llama.cpp/GGUF token count를 물어보므로, log-heavy input을 `tiktoken`이 과소추정하는 문제 없이 `EMBEDDING_MAX_INPUT_TOKENS=8192`를 사용할 수 있습니다. installer를 다시 실행하면 patch를 idempotent하게 재적용하므로 Honcho update로 upstream file이 교체되어도 복구할 수 있습니다.**
+## 하는 일
 
-Honcho Codex Gateway는 Codex-backed chat completions와 local GGUF/llama.cpp embeddings를 사용해 self-hosted Honcho를 bootstrap하기 위한 local-only helper입니다.
+- Honcho가 호출할 `/v1/chat/completions` endpoint를 제공합니다. Chat backend는 local Codex OAuth credential입니다.
+- `/v1/embeddings` endpoint를 제공합니다. Embedding backend는 local llama.cpp GGUF embedding server입니다.
+- Honcho `.env`에 chat, summary, deriver, dream, embedding provider 설정을 씁니다.
+- Honcho container가 gateway에 접근할 수 있도록 Honcho `docker-compose.yml`에 shared Docker network 설정을 patch합니다.
+- GGUF embedding에서 Honcho가 `tiktoken` 추정값만 믿지 않도록, 작은 reversible tokenizer patch를 적용합니다.
 
-이 프로젝트는 특히 Hermes-style personal agent memory를 위해 Honcho를 설정할 때, 본인 credential을 사용하는 local single-user experimentation을 의도합니다. Hosted API service, public proxy, credential-sharing tool, 공식 OpenAI API의 production replacement가 아닙니다.
-
-- Chat Completions: `/v1/chat/completions`는 사용자 소유의 Codex OAuth credential과 Hermes Agent에서 사용한 Responses 변환 패턴을 이 gateway에 맞게 조정해 사용합니다.
-- Embeddings: `/v1/embeddings`는 GGUF embedding model을 사용하는 llama.cpp server로 proxy합니다. 현재 지원되는 embedding backend는 llama.cpp 기반 GGUF뿐입니다.
-- Safety posture: 별도 Docker stack, 기본 localhost-only published port, local `GATEWAY_API_KEY`, credential pooling 없음, hosted/public proxy 의도 없음.
-
-이 프로젝트는 OpenAI, Honcho, Hermes Agent, Nous Research, Plastic Labs의 공식 프로젝트가 아닙니다. 본인 계정/credential로만 사용하고 적용 가능한 약관을 준수하세요.
-
-## What this project is
-
-- Honcho Docker quick-install style setup을 위한 local bootstrap/helper layer입니다.
-- Single-user development와 experimentation을 위한 convenience gateway입니다.
-- Honcho의 OpenAI-compatible chat provider 설정과 local GGUF/llama.cpp embeddings를 함께 맞추는 도구입니다.
-- 범용 OpenAI-compatible platform이 아니라 personal memory-stack experiment를 위한 좁은 helper입니다.
-
-## What this project is not
+## 하지 않는 일
 
 이 프로젝트는 다음이 아닙니다.
 
-- hosted API service;
-- credential pooling service;
-- multi-user proxy;
-- resale layer;
-- rate-limit bypass mechanism;
-- scraping, bulk extraction, data-harvesting tool;
-- official OpenAI API의 production replacement;
-- arbitrary application을 위한 general-purpose OpenAI-compatible gateway.
+- hosted API service
+- credential pooling 또는 account sharing tool
+- rate-limit bypass
+- scraping 또는 data harvesting tool
+- official API의 production replacement
+- arbitrary multi-user application을 위한 general proxy
 
-## Safety and acceptable use
+본인 credential로 local에서 사용하세요. Public internet에 노출하지 마세요.
 
-이 프로젝트는 사용자 본인 credential을 사용하는 local single-user experimentation을 의도합니다. Rate limit 우회, credential 공유, account pooling, access resale, hosted API service 제공을 시도하지 않습니다.
+## 현재 상태
 
-이 gateway를 public으로 노출하지 마세요. Credential을 공유, pooling, rotation, resale하지 마세요. Automated scraping, bulk output extraction, data harvesting 용도로 사용하지 마세요. Production, commercial, multi-user, CI/CD, hosted usage에는 가능한 경우 officially supported API와 authentication flow를 사용하세요. 연결하는 service의 약관 준수 책임은 사용자에게 있습니다.
-
-## Compatibility status
-
-| Component | Status |
+| 항목 | 상태 |
 | --- | --- |
-| Honcho Docker quick install | Primary target |
-| Fresh Honcho database | Recommended |
-| Existing Honcho database | Embedding dimension mismatch risk |
-| Linux | Tested / primary target |
-| macOS | Untested / experimental |
-| Windows / WSL2 | Untested / experimental |
-| Public hosted deployment | Not supported |
-| Multi-user deployment | Not supported |
-| Production API replacement | Not supported |
+| Linux + Docker Compose | 테스트됨 |
+| Honcho Docker quick install | 주요 대상 |
+| Fresh Honcho database | 권장 |
+| Existing Honcho database | 가능하지만 embedding dimension 변경은 주의 필요 |
+| Default embedding model | BGE-M3 FP16 GGUF, 1024 dimensions |
+| macOS / Windows / WSL2 | 아직 미검증 |
+| Public hosted deployment | 지원하지 않음 |
 
-## Why this exists
+Default install은 다음 경로로 smoke-tested 되었습니다.
 
-대부분의 Codex OAuth gateway 프로젝트는 Codex 또는 ChatGPT OAuth 기반 chat을 OpenAI-compatible API로 노출하는 데 집중합니다. 하지만 Honcho를 Docker quick install로 깔끔하게 붙이려면 첫 시작부터 vector dimension이 맞는 chat provider와 embeddings provider가 모두 필요합니다.
+- Honcho API health: `127.0.0.1:8000`
+- Gateway health: `127.0.0.1:8787`
+- Codex-backed Honcho chat
+- 1024-dimensional BGE-M3 embeddings
+- llama.cpp/GGUF token count를 반환하는 gateway `/internal/token-count`
+- Honcho queue drain to zero pending work units
 
-이 프로젝트는 그 provider boundary를 Honcho에 맞게 포장합니다. 한쪽에는 Codex OAuth 기반 chat completions를 두고, 다른 한쪽에는 local llama.cpp/GGUF embeddings proxy를 두어, 둘 다 같은 local OpenAI-compatible `/v1` surface 뒤에 둡니다.
+## 빠른 설치
 
-일반적인 Codex OAuth gateway와 달리, 이 프로젝트는 llama.cpp/GGUF 기반 local `/v1/embeddings` route도 함께 제공합니다. Codex OAuth gateway는 보통 chat/responses 경로를 다루고, embeddings는 별도 backend가 필요하기 때문입니다.
-
-## Security and limitations
-
-Secret handling과 local exposure guidance는 [`SECURITY.md`](SECURITY.md)를 참고하세요. Experimental status, compatibility limits, embedding-dimension caveats는 [`LIMITATIONS.md`](LIMITATIONS.md)를 참고하세요.
-
-## License and provenance
-
-이 저장소는 **AGPL-3.0-or-later**로 라이선스됩니다. 이 라이선스는 Honcho의 AGPL-3.0 codebase와 호환성을 유지하면서, MIT-licensed Hermes-derived OAuth/auth pattern을 combined work의 일부로 재배포할 수 있도록 선택했습니다.
-
-**AI assistance notice:** 이 저장소의 일부 코드와 문서 초안은 maintainer 검토하에 AI 도움을 받아 작성 또는 수정되었습니다. README는 추후 maintainer가 직접 계속 다듬을 예정입니다.
-
-Attribution과 provenance detail은 `NOTICE.md`를 참고하세요.
-
-## Install: fresh Honcho + gateway setup
-
-Honcho와 이 gateway를 sibling directory로 clone한 뒤 gateway installer를 한 번 실행합니다.
+Honcho와 이 gateway를 sibling directory로 clone합니다.
 
 ```bash
 git clone https://github.com/plastic-labs/honcho.git
@@ -89,14 +59,17 @@ cd honcho-codex-gateway
 sudo ./install.sh
 ```
 
-`sudo ./install.sh` 실행 중에는 다음을 진행합니다.
+`sudo ./install.sh`는 다음을 처리합니다.
 
-1. Embedding GGUF model을 선택합니다.
-2. 안내에 따라 Codex OAuth login을 완료합니다.
-3. installer가 gateway 파일 준비, Honcho `.env` 작성, Honcho `docker-compose.yml` patch, reversible Honcho tokenizer patch 적용을 처리합니다.
-4. installer는 마지막에 Docker Compose 실행 순서를 출력하고 종료합니다.
+1. 사용할 embedding GGUF model을 묻습니다.
+2. `--skip-auth`를 쓰지 않았다면 Codex OAuth login을 실행합니다.
+3. Gateway `.env`, `.auth/`, `models/`, local Python environment를 준비합니다.
+4. Honcho `.env`를 생성하거나 업데이트합니다.
+5. Shared Docker network를 위해 Honcho `docker-compose.yml`을 생성하거나 patch합니다.
+6. Reversible Honcho tokenizer patch를 적용합니다.
+7. 다음에 실행할 Docker Compose 명령을 출력합니다.
 
-출력된 명령을 순서대로 실행합니다.
+그 다음 두 stack을 이 순서대로 시작합니다.
 
 ```bash
 cd <parent-directory>/honcho-codex-gateway
@@ -106,126 +79,101 @@ cd <parent-directory>/honcho
 sudo docker compose up -d --build
 ```
 
-### Important: embedding dimensions must match from first startup
+순서가 중요합니다. Gateway stack이 shared Docker network와 Honcho가 접근할 `codex-gateway` service를 만듭니다.
 
-기본 OpenAI embedding config로 Honcho API/deriver를 한 번 시작한 뒤 BGE-M3로 나중에 바꾸지 마세요. Honcho는 첫 embedding provider/model dimension을 기준으로 database/vector index를 초기화할 수 있습니다. OpenAI `text-embedding-3-small`은 보통 `1536` dimensions를 사용하고, 이 gateway의 기본 local BGE-M3 embedding model은 `1024` dimensions를 사용합니다.
+## tokenizer patch가 필요한 이유
 
-Database가 이미 한 dimension으로 초기화되었다면 나중에 바꾸는 과정에서 실패하거나 database reset, migration, re-embedding 작업이 필요할 수 있습니다. 가능하면 첫 Honcho startup 전에 원하는 embedding provider를 설정하세요.
+Upstream Honcho의 embedding chunker는 token count를 `tiktoken`으로 추정합니다. OpenAI embeddings에서는 괜찮지만, 이 gateway의 default embedding backend는 llama.cpp/GGUF 기반 BGE-M3입니다. Log-heavy text나 mixed text에서는 `tiktoken`이 GGUF tokenizer보다 적게 세는 경우가 있습니다. 그러면 Honcho는 안전하다고 생각한 chunk를 만들지만, llama.cpp는 너무 길다고 거부할 수 있습니다.
 
-### 1. Clone both repos
-
-```bash
-mkdir -p ./honcho-local
-cd ./honcho-local
-git clone https://github.com/plastic-labs/honcho.git
-git clone https://github.com/DaydreamBlend/honcho-codex-gateway.git
-```
-
-`honcho-codex-gateway`가 이미 local working copy라면 `honcho` 옆에 두면 됩니다.
-
-### 2. Prepare the gateway Docker stack first
-
-Installer는 default GGUF가 없으면 자동으로 다운로드합니다.
+이 gateway는 proxy 안에서 긴 input을 쪼갠 뒤 embedding을 평균내지 않습니다. Retrieval semantics가 달라질 수 있기 때문입니다. 대신 installer가 Honcho에 작은 patch를 적용합니다.
 
 ```text
-model: gpustack/bge-m3-GGUF / bge-m3-FP16.gguf
-license: MIT, BAAI/bge-m3와 GGUF model card에서 이어짐
-path: <parent-directory>/honcho-codex-gateway/models/bge-m3-FP16.gguf
+Honcho chunker
+  -> gateway /internal/token-count
+  -> llama.cpp /tokenize
+  -> GGUF token count
 ```
 
-Terminal에서 `install.sh`를 실행하면 사용할 embedding GGUF를 물어봅니다. Bundled BGE-M3 default를 다운로드하거나, 기존 local GGUF를 `./models/` 아래로 복사하거나, Hugging Face URL을 붙여넣을 수 있습니다. Hugging Face의 direct `.gguf` file URL이면 바로 다운로드하고, Hugging Face repo/tree URL이면 사용 가능한 `.gguf` file 목록을 보여준 뒤 선택하게 합니다. Hugging Face가 아닌 URL은 거부합니다. 선택된 file은 `EMBEDDING_GGUF_PATH`에 기록되어 Docker Compose가 llama.cpp server에 mount합니다.
+Honcho는 여전히 직접 여러 embedding chunk를 만듭니다. Gateway는 backend token count만 알려줍니다.
 
-Interactive menu 대신 flag를 사용하려면 model option을 명시하세요. 예:
-
-```bash
-./install.sh --model-file /path/to/embedding-model.gguf --embedding-dimensions auto
-# metadata detection을 사용할 수 없는 file이라면:
-./install.sh --model-file /path/to/embedding-model.gguf --embedding-dimensions 768
-```
-
-Custom `--model-url`을 사용할 때는 `--model-sha256 SHA256`도 같이 지정하세요. Checksum verification 없이 받겠다고 의도적으로 결정한 경우에만 `--model-sha256 ''`를 사용하세요.
-
-기본적으로 installer는 bundled `bge-m3-fp16` embedding preset을 사용하고, 가능하면 GGUF metadata에서 `EMBEDDING_VECTOR_DIMENSIONS`를 자동으로 설정합니다. Metadata detection을 할 수 없으면 preset의 `1024` dimension으로 fallback합니다.
-
-`--write-honcho-env`가 기존 Honcho `.env`를 업데이트할 때, 기존 `EMBEDDING_VECTOR_DIMENSIONS` 값이 선택된 model dimension과 다르면 installer는 기본적으로 중단합니다. `--force-embedding-dimension-change`는 일반 설치 option이 아니라 migration/re-embedding을 의도할 때만 쓰는 escape hatch로 취급하세요.
-
-그 다음 실행:
+Patch는 marker가 있고 idempotent합니다. Honcho update로 patch가 사라졌다면 다시 실행하세요.
 
 ```bash
 cd <parent-directory>/honcho-codex-gateway
 sudo ./install.sh
 ```
 
-Installer option을 확인하려면:
+필요하면 installer가 patch를 다시 적용합니다.
 
-```bash
-./install.sh --help
+## embedding dimensions는 첫 Honcho startup 전에 맞추세요
+
+기본 OpenAI embedding 설정으로 Honcho를 한 번 시작한 뒤 나중에 BGE-M3로 바꾸지 마세요. Honcho는 처음 설정된 embedding dimension을 기준으로 database/vector schema를 초기화할 수 있습니다.
+
+Bundled BGE-M3 GGUF model은 1024-dimensional vector를 반환합니다. 일부 OpenAI embedding model은 1536 dimensions를 사용합니다. Data가 이미 쓰인 뒤 dimension을 바꾸려면 reset, migration, re-embedding이 필요할 수 있습니다.
+
+가장 안전한 흐름은 첫 Honcho startup 전에 gateway installer를 실행하는 것입니다.
+
+## custom GGUF model
+
+Default installer는 다음 model을 다운로드합니다.
+
+```text
+model: gpustack/bge-m3-GGUF / bge-m3-FP16.gguf
+license: MIT, BAAI/bge-m3와 GGUF model card에서 이어짐
+path: ./models/bge-m3-FP16.gguf
 ```
 
-`install.sh`는 `../honcho` 같은 sibling Honcho checkout을 자동으로 감지합니다. 필요할 때 Honcho `.env`를 `.env.template`에서 생성하거나, 기존 `.env`를 timestamped `.env.bak.honcho-codex-gateway-*` backup으로 저장한 뒤 업데이트합니다. 필요할 때 Honcho `docker-compose.yml`도 `docker-compose.yml.example`에서 생성하고, `api`와 `deriver`를 shared external `honcho-codex-gateway` Docker network에 연결합니다. 기존 compose file은 patch 전에 backup합니다. Honcho가 이 repo 옆에 없다면 `--honcho-dir /path/to/honcho`를 사용하고, 자동 Honcho 수정을 끄려면 `--no-write-honcho-env`를 사용하세요. Honcho를 시작하기 전에 두 파일을 모두 검토하세요.
+Local GGUF를 `./models/` 아래로 복사하거나, Hugging Face GGUF URL을 줄 수도 있습니다. Direct `.gguf` URL은 바로 받습니다. Repo/tree URL을 넣으면 사용 가능한 `.gguf` file 목록을 보여주고 선택하게 합니다.
 
-Installer는 noisy setup/build output을 `logs/install-*.log`에 보관하고, 마지막 console summary는 Honcho `.env` 위치와 Codex OAuth status 중심으로 짧게 유지합니다. 현재 사용자가 `/var/run/docker.sock`에 접근할 수 없으면 `sudo -v`를 요청하고 `sudo docker compose`로 Docker Compose를 실행합니다.
-
-Installer는 gateway와 llama.cpp GGUF embedding server를 위한 **별도** Docker Compose project를 시작합니다.
+Scripted install 예시:
 
 ```bash
-docker compose -p honcho-codex-gateway up -d --build
+sudo ./install.sh --model-file /path/to/embedding-model.gguf --embedding-dimensions auto
 ```
 
-Host에는 gateway만 localhost로 publish합니다.
+Dimension detection을 사용할 수 없으면 dimension을 직접 지정하세요.
+
+```bash
+sudo ./install.sh --model-file /path/to/embedding-model.gguf --embedding-dimensions 768
+```
+
+Custom download에는 checksum을 같이 넘기세요.
+
+```bash
+sudo ./install.sh --model-url <hugging-face-gguf-url> --model-sha256 <sha256>
+```
+
+Checksum 없이 받겠다고 의도적으로 결정한 경우에만 `--model-sha256 ''`를 사용하세요.
+
+## runtime topology
+
+Gateway는 별도 Compose stack으로 실행됩니다. Honcho는 upstream에 가깝게 유지하고, external Docker network로 gateway stack에 붙습니다.
+
+```text
+Honcho api / deriver
+  -> http://codex-gateway:8787/v1
+  -> honcho-codex-gateway stack
+       - codex-gateway
+       - embedding-server
+```
+
+Gateway는 local smoke test를 위해 host에도 publish됩니다.
 
 ```text
 http://127.0.0.1:8787
 ```
 
-Bundled llama.cpp embedding server는 BGE-M3 embedding을 위해 8192-token context window로 시작합니다.
-
-```text
---ctx-size 8192
---batch-size 8192
---ubatch-size 8192
-```
-
-이 설정은 의도된 것입니다. BGE-M3는 8192-token context window를 지원하지만, upstream Honcho는 현재 embedding chunk를 `tiktoken`으로 추정합니다. installer는 작은 reversible Honcho patch를 적용해서 chunking 시 gateway `/internal/token-count` endpoint를 호출하고, 이 endpoint가 llama.cpp/GGUF tokenization을 proxy하도록 합니다. Backend-aware chunking이 켜지면 생성되는 Honcho config는 보수적인 tiktoken-only margin 대신 `EMBEDDING_MAX_INPUT_TOKENS=8192`와 `EMBEDDING_TOKENIZER_PROVIDER=gateway`를 사용합니다.
-
-Honcho container에서는 이 OpenAI-compatible base URL을 사용합니다.
+Honcho container는 shared network의 Docker DNS를 사용해야 합니다.
 
 ```text
 http://codex-gateway:8787/v1
 ```
 
-Gateway stack은 `honcho-codex-gateway`라는 shared Docker network를 생성합니다. Honcho integration이 활성화되어 있으면 installer가 필요할 때 Honcho `docker-compose.yml`을 `docker-compose.yml.example`에서 생성하고, Honcho `api`와 `deriver`를 default Honcho network는 유지한 채 이 external network에 추가로 연결합니다.
+Linux setup에서는 Honcho container를 `host.docker.internal`로 보내지 마세요. Gateway host port는 local-only exposure를 위해 `127.0.0.1`에 bind됩니다.
 
-```yaml
-services:
-  api:
-    networks:
-      - default
-      - honcho-codex-gateway
-  deriver:
-    networks:
-      - default
-      - honcho-codex-gateway
+## Honcho config shape
 
-networks:
-  honcho-codex-gateway:
-    external: true
-```
-
-이것은 gateway service를 Honcho stack에 grafting하는 것이 아닙니다. 두 개의 별도 Compose stack이 Docker service DNS name으로 통신하게 하는 설정입니다. Gateway는 host smoke test를 위해 계속 `127.0.0.1:8787`에 publish되지만, Honcho container는 `host.docker.internal` 대신 shared network의 `http://codex-gateway:8787/v1`을 사용해야 합니다.
-
-### 3. 생성된 Honcho file 검토
-
-Gateway installer가 Honcho config를 준비하기 전에는 Honcho `docker compose up`을 실행하지 마세요. 위 추천 명령을 사용하면 installer가 이미 다음을 처리합니다.
-
-- Honcho `.env`가 없으면 `.env.template`에서 생성합니다.
-- Honcho `docker-compose.yml`이 없으면 `docker-compose.yml.example`에서 생성합니다.
-- 기존 `.env` / compose file을 수정하기 전 backup합니다.
-- 생성된 provider block을 검토할 수 있도록 `logs/honcho-env.latest.txt`에 저장합니다.
-
-일부러 `--write-honcho-env`를 사용하지 않았다면, 평소 `LLM_OPENAI_API_KEY` / `LLM_ANTHROPIC_API_KEY` / `LLM_GEMINI_API_KEY`를 채우는 단계에서 저장된 block을 수동으로 적용하세요.
-
-Minimum shape:
+Installer가 full block을 쓰지만, 핵심은 다음 형태입니다.
 
 ```env
 LLM_OPENAI_API_KEY=<gateway-api-key-from-honcho-codex-gateway-.env>
@@ -233,8 +181,8 @@ LLM_OPENAI_API_KEY=<gateway-api-key-from-honcho-codex-gateway-.env>
 DIALECTIC_LEVELS__minimal__MODEL_CONFIG__TRANSPORT=openai
 DIALECTIC_LEVELS__minimal__MODEL_CONFIG__MODEL=gpt-5.4-mini
 DIALECTIC_LEVELS__minimal__MODEL_CONFIG__OVERRIDES__BASE_URL=http://codex-gateway:8787/v1
-# dialectic low/medium/high/max, summary, deriver, dream deduction, dream induction에
-# 같은 transport/model/base_url pattern을 반복합니다.
+# dialectic low/medium/high/max, summary, deriver, dream deduction,
+# dream induction에도 같은 transport/model/base_url pattern을 씁니다.
 
 EMBEDDING_MODEL_CONFIG__TRANSPORT=openai
 EMBEDDING_MODEL_CONFIG__MODEL=text-embedding-bge-m3
@@ -248,86 +196,60 @@ EMBEDDING_TOKENIZER_API_KEY_ENV=LLM_OPENAI_API_KEY
 EMBEDDING_MODEL_CONFIG__DIMENSIONS_MODE=never
 ```
 
-### 4. Start Honcho Docker quick install
+## smoke tests
 
-`.env`가 LLM과 embeddings를 gateway로 가리킨 뒤 시작하세요. Honcho upstream Docker compose는 API를 `127.0.0.1:8000`에 노출하므로 self-hosted API URL은 보통 `http://localhost:8000`입니다.
-
-```bash
-cd <parent-directory>/honcho
-docker compose up
-```
-
-Detached mode:
-
-```bash
-docker compose up -d
-```
-
-Honcho Docker quick install이 non-1536 embedding을 위해 `scripts/configure_embeddings.py`를 자동으로 실행하지 않는다면, API/deriver가 embedding을 쓰기 전에 Honcho API image/container 안에서 equivalent command를 실행하세요. Invariant는 다음과 같습니다.
-
-```text
-Honcho .env gateway settings first → Honcho startup/migrations → empty embedding columns configured to 1024 → API/deriver writes data
-```
-
-이미 실행 중이고 embeddings가 채워진 Honcho에 대해서는 이것을 in-place migration으로 취급하지 마세요. Fresh deployment를 세우고 data replay/re-embed 후 cut over하세요.
-
-### 5. Run Hermes + Honcho setup
-
-Honcho가 healthy가 된 뒤 Hermes integration guide를 따르세요.
-
-```bash
-hermes honcho setup
-hermes honcho status
-```
-
-Hermes가 시작한 Honcho API URL을 가리키게 하세요. 예:
-
-```text
-http://localhost:8000
-```
-
-정확한 URL/JWT/workspace/session 선택은 Honcho deployment와 Hermes profile에 따라 달라집니다. Honcho `/health`가 OK인 뒤에만 실행하세요. 그렇지 않으면 독립적인 두 bootstrap을 동시에 디버깅하게 됩니다.
-
-## Tested environment
-
-이 저장소는 Linux에서만 개발되고 smoke-tested 되었습니다.
-
-- Host OS: Linux
-- Runtime hardware: GB10 기반 MSI EdgeXpert 1TB 모델
-- Honcho upstream Docker compose API port: `127.0.0.1:8000:8000`
-- Gateway Docker compose published port: `127.0.0.1:8787:8787`
-- Honcho container는 shared `honcho-codex-gateway` Docker network에서 `http://codex-gateway:8787/v1`로 gateway에 접근합니다.
-
-macOS와 Windows Docker Desktop은 아직 smoke-tested 되지 않았습니다. 문서화된 cross-stack 경로는 `host.docker.internal`이 아니라 Docker network DNS입니다.
-
-## Smoke tests
-
-Gateway only:
+Gateway health:
 
 ```bash
 curl -sS http://127.0.0.1:8787/health
-# /v1/* routes에는 gateway .env의 GATEWAY_API_KEY를 사용한 HTTP Authorization Bearer header를 포함하세요.
-curl -sS http://127.0.0.1:8787/v1/models \
-  -H "<gateway authorization header>"
-curl -sS -X POST http://127.0.0.1:8787/v1/chat/completions \
-  -H "<gateway authorization header>" \
-  -H 'content-type: application/json' \
-  -d '{"model":"gpt-5.4-mini","messages":[{"role":"user","content":"Reply exactly: smoke ok"}]}'
 ```
 
-Gateway를 통한 embedding은 embedding server/model이 실행 중이어야 합니다.
+Honcho health:
+
+```bash
+curl -sS http://127.0.0.1:8000/health
+```
+
+`/v1/*` gateway endpoint는 gateway `.env`의 `GATEWAY_API_KEY`를 사용한 Authorization header가 필요합니다.
+
+Embedding smoke:
 
 ```bash
 curl -sS -X POST http://127.0.0.1:8787/v1/embeddings \
-  -H "<gateway authorization header>" \
+  -H "Authorization: Bearer <gateway-api-key>" \
   -H 'content-type: application/json' \
   -d '{"model":"text-embedding-bge-m3","input":"smoke"}'
 ```
 
-Honcho startup 이후:
+Tokenizer-count smoke:
 
 ```bash
-curl -sS http://localhost:8000/health
+curl -sS -X POST http://127.0.0.1:8787/internal/token-count \
+  -H "Authorization: Bearer <gateway-api-key>" \
+  -H 'content-type: application/json' \
+  -d '{"model":"text-embedding-bge-m3","input":"smoke"}'
 ```
 
-그 다음 Honcho API 또는 Hermes Honcho setup/status로 memory operation을 확인하세요.
+Honcho chat smoke:
+
+```bash
+curl -sS -X POST http://127.0.0.1:8000/v3/workspaces/hermes/peers/honcho-codex-smoke/chat \
+  -H 'content-type: application/json' \
+  -d '{"query":"Reply exactly: smoke ok","stream":false,"reasoning_level":"minimal"}'
+```
+
+## notes and limitations
+
+- Default install은 local-only, single-user use를 전제로 합니다.
+- Gateway는 기본적으로 `127.0.0.1`에 bind됩니다.
+- Existing Honcho database에 이미 다른 vector dimension의 embedding schema가 채워져 있다면 추가 작업이 필요합니다.
+- macOS와 Windows Docker Desktop은 아직 테스트하지 않았습니다.
+- 이 프로젝트는 사용자 본인의 OAuth credential에 의존합니다. Credential을 공유, pooling, rotation, resale하지 마세요.
+
+## license and provenance
+
+이 저장소는 AGPL-3.0-or-later로 라이선스됩니다. Honcho의 AGPL-3.0 codebase와 호환성을 유지하면서 MIT-licensed Hermes-derived OAuth/auth pattern을 combined work의 일부로 재배포할 수 있도록 이 라이선스를 사용합니다.
+
+이 프로젝트는 OpenAI, Honcho, Hermes Agent, Nous Research, Plastic Labs의 공식 프로젝트가 아닙니다.
+
+이 저장소의 일부 코드와 문서 초안은 maintainer 검토하에 AI 도움을 받아 작성 또는 수정되었습니다. Attribution과 provenance detail은 `NOTICE.md`를 참고하세요.
