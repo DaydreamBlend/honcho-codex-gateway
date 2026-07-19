@@ -206,6 +206,34 @@ Because that upstream catalog can change independently, `/v1/models` only lists 
 sudo ./install.sh --chat-model gpt-5.6-terra
 ```
 
+### Why Terra is the default
+
+As verified on 2026-07-20, the authenticated Codex catalog still returned
+`gpt-5.4-mini`, but marked it `visibility=hide`, `supported_in_api=true`, and
+`use_responses_lite=false`. Its `upgrade` metadata points to `gpt-5.6-luna` and
+the migration copy says that Mini is no longer available. This explains why Mini
+is absent from the normal Codex OAuth model picker even though an explicit legacy
+request can still succeed. In live controls, the gateway sent
+`model=gpt-5.4-mini` unchanged and the response still reported
+`model=gpt-5.4-mini`; the gateway did not fall back to Luna or Terra.
+
+That response label does not prove which internal OpenAI deployment or weights
+served the request. The backend may retain a compatibility route or alias that
+is not externally observable, so this project does not treat hidden Mini as a
+supported production default. In the official Codex client source,
+[`visibility` controls whether a model appears in the picker](https://github.com/openai/codex/blob/3e2f79727a4e8ddfc8e3acb838d496b121094b9e/codex-rs/protocol/src/openai_models.rs#L622-L633),
+while `upgrade` drives an explicit client-side migration prompt; the
+[configured model changes when that migration is accepted](https://github.com/openai/codex/blob/3e2f79727a4e8ddfc8e3acb838d496b121094b9e/codex-rs/tui/src/app/startup_prompts.rs#L182-L203).
+Those code paths do not establish a transparent server-side alias.
+
+Luna is the catalog's advertised Mini successor, but truthful
+`originator=honcho_codex_gateway` controls reproduced intermittent upstream
+`response.failed(server_error)` events after about 31 seconds. Terra is visible,
+`supported_in_api=true`, and completed the corresponding plain and two-round
+tool-loop controls without that failure pattern. The installer therefore uses
+Terra explicitly instead of relying on hidden Mini, silently substituting a
+model, or impersonating the official Codex client.
+
 ## Updating Honcho and switching an existing install to Terra
 
 The tokenizer patch intentionally modifies `src/embedding_client.py`, so restore that generated patch before pulling Honcho. Stop if `git status` shows unrelated tracked changes.
@@ -296,11 +324,10 @@ the lowest currently proven tool-capable effort. An explicitly supplied effort
 is never rewritten, including explicit `none`. Correct Responses Lite formatting
 removes the old Full/Lite mismatch, but the Codex OAuth backend can still return
 intermittent late `server_error` events independently of the selected effort.
-The installer currently defaults to `gpt-5.6-terra` because controlled tests with
-a truthful non-Codex originator found intermittent late failures on Luna while
-Terra completed the same plain and tool-loop requests. Luna remains available as
-an explicit `--chat-model gpt-5.6-luna` selection; the gateway never substitutes
-models silently.
+For the compatibility and reliability reasons above, the installer defaults to
+`gpt-5.6-terra`. Luna remains available as an explicit
+`--chat-model gpt-5.6-luna` selection; the gateway never substitutes models
+silently.
 
 The current Codex backend for `gpt-5.6-luna` rejects `minimal`; its HTTP error
 reports `none`, `low`, `medium`, `high`, and `xhigh` as supported Responses API

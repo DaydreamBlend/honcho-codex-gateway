@@ -206,6 +206,34 @@ Upstream catalog는 gateway와 독립적으로 바뀔 수 있으므로 `/v1/mode
 sudo ./install.sh --chat-model gpt-5.6-terra
 ```
 
+### Terra를 기본값으로 쓰는 이유
+
+2026-07-20 확인 시점에 authenticated Codex catalog는 `gpt-5.4-mini`를 여전히
+반환했지만, `visibility=hide`, `supported_in_api=true`,
+`use_responses_lite=false`로 표시했습니다. `upgrade` metadata는
+`gpt-5.6-luna`를 가리키며 migration 문구는 Mini가 더 이상 제공되지 않는다고
+안내합니다. 따라서 Mini는 일반 Codex OAuth model picker에서는 보이지 않지만,
+명시적인 legacy request는 아직 성공할 수 있습니다. Live control에서 gateway는
+`model=gpt-5.4-mini`를 변경하지 않았고 response도
+`model=gpt-5.4-mini`라고 보고했습니다. Gateway가 Luna나 Terra로 fallback한 것은
+아닙니다.
+
+다만 response의 model label만으로 실제 요청을 처리한 OpenAI 내부 deployment나
+weights를 확인할 수는 없습니다. 외부에서 관찰할 수 없는 compatibility route 또는
+alias가 남아 있을 가능성이 있으므로, 이 프로젝트는 hidden Mini를 지원되는 운영
+기본값으로 간주하지 않습니다. Official Codex client source에서도
+[`visibility`는 model picker 표시 여부를 정하고](https://github.com/openai/codex/blob/3e2f79727a4e8ddfc8e3acb838d496b121094b9e/codex-rs/protocol/src/openai_models.rs#L622-L633),
+`upgrade`는 명시적인 client-side migration prompt를 구동합니다.
+[Configured model은 해당 migration을 수락할 때 변경됩니다](https://github.com/openai/codex/blob/3e2f79727a4e8ddfc8e3acb838d496b121094b9e/codex-rs/tui/src/app/startup_prompts.rs#L182-L203).
+이 client code path만으로 transparent server-side alias가 있다고 볼 수는 없습니다.
+
+Luna는 catalog가 안내하는 Mini 후속 model이지만, 정직한
+`originator=honcho_codex_gateway`를 사용한 control에서는 약 31초 뒤 간헐적인
+upstream `response.failed(server_error)`가 재현됐습니다. Terra는 picker에 표시되고
+`supported_in_api=true`이며, 같은 plain 및 two-round tool-loop control을 해당 실패
+패턴 없이 완료했습니다. 따라서 installer는 hidden Mini에 의존하거나 model을 몰래
+치환하거나 official Codex client를 사칭하지 않고, Terra를 명시적으로 기본 사용합니다.
+
 ## 기존 Honcho 업데이트와 Terra 전환
 
 Tokenizer patch는 의도적으로 `src/embedding_client.py`를 수정합니다. 따라서 Honcho를 pull하기 전에 생성된 patch를 복원해야 합니다. `git status`에 이 patch 외의 tracked change가 보이면 먼저 멈추고 확인하세요.
@@ -295,11 +323,10 @@ history가 있으면 `CODEX_GATEWAY_TOOL_REASONING_EFFORT`(기본 `low`)를
 tool-capable effort를 유지하기 위한 설정입니다. 명시된 effort는 명시적 `none`까지
 포함해 변경하지 않습니다. 올바른 Responses Lite formatting은 기존 Full/Lite
 mismatch를 제거하지만, Codex OAuth backend는 effort와 별개로 간헐적인 late
-`server_error` event를 반환할 수 있습니다. Installer는 현재 `gpt-5.6-terra`를
-기본값으로 사용합니다. Truthful non-Codex originator를 사용한 controlled test에서
-Luna는 간헐적인 late failure가 있었지만 Terra는 같은 plain/tool-loop 요청을
-완료했기 때문입니다. Luna도 `--chat-model gpt-5.6-luna`로 명시 선택할 수 있으며,
-gateway는 model을 몰래 대체하지 않습니다.
+`server_error` event를 반환할 수 있습니다. 위 호환성·안정성 이유로 installer는
+`gpt-5.6-terra`를 기본값으로 사용합니다. Luna도
+`--chat-model gpt-5.6-luna`로 명시 선택할 수 있으며, gateway는 model을 몰래
+대체하지 않습니다.
 
 현재 `gpt-5.6-luna` Codex backend는 `minimal`을 거부하며, 실제 HTTP 오류가
 Responses API 지원값으로 `none`, `low`, `medium`, `high`, `xhigh`를 알렸습니다.
