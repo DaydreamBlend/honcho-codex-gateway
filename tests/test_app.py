@@ -146,6 +146,42 @@ def test_chat_preserves_explicit_none_when_tools_are_present():
     assert "include" not in upstream.calls[0]
 
 
+def test_chat_uses_low_for_omitted_effort_when_tool_history_is_present():
+    config = GatewayConfig(mode="fake", embedding_backend="disabled")
+    upstream = StaticFakeResponsesClient()
+    bridge = CodexChatBridge(config=config, client=upstream)
+    client = TestClient(create_app(bridge=bridge, config=config))
+
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "gpt-5.6-luna",
+            "messages": [
+                {"role": "user", "content": "look this up"},
+                {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call_lookup",
+                            "type": "function",
+                            "function": {"name": "lookup", "arguments": "{}"},
+                        }
+                    ],
+                },
+                {"role": "tool", "tool_call_id": "call_lookup", "content": "42"},
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    assert upstream.calls[0]["reasoning"] == {
+        "effort": "low",
+        "summary": "auto",
+    }
+    assert upstream.calls[0]["include"] == ["reasoning.encrypted_content"]
+
+
 def test_models_does_not_advertise_a_hardcoded_chat_catalog():
     app = create_app(config=GatewayConfig(mode="fake", embedding_backend="proxy"))
     response = TestClient(app).get("/v1/models")

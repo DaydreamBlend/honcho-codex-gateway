@@ -272,9 +272,9 @@ Honcho는 `ModelConfig.thinking_effort`를 Chat Completions의
 그 자체로 `thinking_effort`를 채우지는 않습니다.
 
 현재 Luna Codex OAuth 경로는 `none`과 function tools를 함께 보낼 때도 반복적으로
-실패합니다. 따라서 effort를 생략한 요청은 tools가 없으면 `none`, tools가 있으면
-`CODEX_GATEWAY_TOOL_REASONING_EFFORT`(기본 `low`)를 사용합니다. 명시된 effort는
-명시적 `none`까지 포함해 변경하지 않습니다.
+실패합니다. 따라서 effort를 생략한 요청은 tool context가 없으면 `none`, tool 정의나
+tool-call history가 있으면 `CODEX_GATEWAY_TOOL_REASONING_EFFORT`(기본 `low`)를
+사용합니다. 명시된 effort는 명시적 `none`까지 포함해 변경하지 않습니다.
 
 현재 `gpt-5.6-luna` Codex backend는 `minimal`을 거부하며, 실제 HTTP 오류가
 Responses API 지원값으로 `none`, `low`, `medium`, `high`, `xhigh`를 알렸습니다.

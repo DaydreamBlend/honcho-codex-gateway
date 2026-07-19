@@ -170,10 +170,14 @@ class CodexChatBridge:
         chat_request = self._as_request(request)
         requested_model = chat_request.model
         explicit_effort = chat_request.effective_reasoning_effort
+        has_tool_context = bool(chat_request.tools) or any(
+            message.role == "tool" or bool(getattr(message, "tool_calls", None))
+            for message in chat_request.messages
+        )
         if explicit_effort is not None:
             # Preserve an explicit caller choice even when tools are present.
             requested_effort = explicit_effort
-        elif chat_request.tools:
+        elif has_tool_context:
             # Luna's current Codex OAuth route repeatedly fails late in the
             # stream for none+tools. Honcho omits effort, so use the separately
             # configurable lowest tool-capable fallback without rewriting

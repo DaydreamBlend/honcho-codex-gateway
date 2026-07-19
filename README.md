@@ -273,8 +273,9 @@ not by itself populate `thinking_effort`.
 
 Luna's current Codex OAuth route also fails reproducibly when `none` is combined
 with function tools. Therefore omitted-effort requests use `none` when tool-less
-and `CODEX_GATEWAY_TOOL_REASONING_EFFORT` (default `low`) when tools are present.
-An explicitly supplied effort is never rewritten, including explicit `none`.
+and `CODEX_GATEWAY_TOOL_REASONING_EFFORT` (default `low`) when tool definitions or
+tool-call history are present. An explicitly supplied effort is never rewritten,
+including explicit `none`.
 
 The current Codex backend for `gpt-5.6-luna` rejects `minimal`; its HTTP error
 reports `none`, `low`, `medium`, `high`, and `xhigh` as supported Responses API
