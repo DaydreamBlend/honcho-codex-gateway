@@ -264,7 +264,8 @@ curl -sS -X POST http://127.0.0.1:8787/v1/chat/completions \
 Honcho는 `ModelConfig.thinking_effort`를 Chat Completions의
 `reasoning_effort` field로 보냅니다. 요청에 이 값이 있으면 gateway는 그대로
 전달하며, 요청이 생략했을 때만 `CODEX_GATEWAY_REASONING_EFFORT`를 fallback으로
-사용합니다. Honcho Dialectic의 `reasoning_level`은 별도의 agent-level 설정이며,
+사용합니다. 이 fallback 기본값은 Luna가 지원하는 최소 effort인 `none`입니다.
+Honcho Dialectic의 `reasoning_level`은 별도의 agent-level 설정이며,
 그 자체로 `thinking_effort`를 채우지는 않습니다.
 
 현재 `gpt-5.6-luna` Codex backend는 `minimal`을 거부하며, 실제 HTTP 오류가

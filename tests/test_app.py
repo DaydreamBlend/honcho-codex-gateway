@@ -69,12 +69,8 @@ def test_chat_reasoning_effort_is_forwarded_without_rewriting():
     }
 
 
-def test_chat_uses_gateway_reasoning_fallback_when_request_omits_it():
-    config = GatewayConfig(
-        mode="fake",
-        reasoning_effort="high",
-        embedding_backend="disabled",
-    )
+def test_chat_uses_none_when_honcho_omits_reasoning_effort():
+    config = GatewayConfig(mode="fake", embedding_backend="disabled")
     upstream = StaticFakeResponsesClient()
     bridge = CodexChatBridge(config=config, client=upstream)
     client = TestClient(create_app(bridge=bridge, config=config))
@@ -85,7 +81,7 @@ def test_chat_uses_gateway_reasoning_fallback_when_request_omits_it():
     )
 
     assert response.status_code == 200
-    assert upstream.calls[0]["reasoning"]["effort"] == "high"
+    assert upstream.calls[0]["reasoning"]["effort"] == "none"
 
 
 def test_models_does_not_advertise_a_hardcoded_chat_catalog():

@@ -7,7 +7,10 @@ import os
 from typing import Literal, Mapping
 
 CODEX_BACKEND_BASE_URL = "https://chatgpt.com/backend-api/codex"
-DEFAULT_REASONING_EFFORT = "medium"
+# Honcho leaves ModelConfig.thinking_effort unset by default. Preserve the
+# low-latency behavior of the former gpt-5.4-mini route by using Luna's actual
+# minimum Codex Responses effort when the request does not specify one.
+DEFAULT_REASONING_EFFORT = "none"
 DEFAULT_GATEWAY_MODE: Literal["fake", "live"] = "fake"
 DEFAULT_EMBEDDING_BASE_URL = "http://embedding-server:8080/v1"
 DEFAULT_EMBEDDING_MODEL = "text-embedding-bge-m3"

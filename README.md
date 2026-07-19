@@ -264,7 +264,8 @@ curl -sS -X POST http://127.0.0.1:8787/v1/chat/completions \
 Honcho serializes `ModelConfig.thinking_effort` as the Chat Completions
 `reasoning_effort` field. When present, the gateway forwards that value unchanged
 and only uses `CODEX_GATEWAY_REASONING_EFFORT` as a fallback when the request omits
-it. Honcho's Dialectic `reasoning_level` is a separate agent-level setting and does
+it. That fallback defaults to Luna's minimum supported effort, `none`. Honcho's
+Dialectic `reasoning_level` is a separate agent-level setting and does
 not by itself populate `thinking_effort`.
 
 The current Codex backend for `gpt-5.6-luna` rejects `minimal`; its HTTP error
