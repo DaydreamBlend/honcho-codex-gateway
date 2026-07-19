@@ -195,19 +195,11 @@ class LocalCodexResponsesTransport:
         rc = params.get("reasoning_config")
         reasoning_enabled = not (isinstance(rc, Mapping) and rc.get("enabled") is False)
         if reasoning_enabled:
-            if reasoning_effort == "none":
-                # `none` produces no reasoning artifacts. Requesting either a
-                # summary or encrypted reasoning with Luna causes a late
-                # streaming APIError instead of a useful validation error.
-                kwargs["reasoning"] = {"effort": reasoning_effort}
-            else:
-                kwargs["reasoning"] = {
-                    "effort": reasoning_effort,
-                    "summary": "auto",
-                }
-                kwargs["include"] = ["reasoning.encrypted_content"]
-        else:
-            kwargs["include"] = []
+            # This Chat Completions facade does not carry Responses reasoning
+            # artifacts into the next request. Requesting summaries or
+            # encrypted reasoning is therefore both useless and harmful: it
+            # caused reproducible late streaming errors in Luna tool loops.
+            kwargs["reasoning"] = {"effort": reasoning_effort}
         timeout = params.get("timeout")
         if isinstance(timeout, (int, float)) and not isinstance(timeout, bool) and timeout > 0:
             kwargs["timeout"] = float(timeout)

@@ -63,11 +63,8 @@ def test_chat_reasoning_effort_is_forwarded_without_rewriting():
     )
 
     assert response.status_code == 200
-    assert upstream.calls[0]["reasoning"] == {
-        "effort": "minimal",
-        "summary": "auto",
-    }
-    assert upstream.calls[0]["include"] == ["reasoning.encrypted_content"]
+    assert upstream.calls[0]["reasoning"] == {"effort": "minimal"}
+    assert "include" not in upstream.calls[0]
 
 
 def test_chat_uses_none_without_reasoning_artifacts_when_honcho_omits_effort():
@@ -110,11 +107,8 @@ def test_chat_uses_low_for_omitted_effort_when_tools_are_present():
     )
 
     assert response.status_code == 200
-    assert upstream.calls[0]["reasoning"] == {
-        "effort": "low",
-        "summary": "auto",
-    }
-    assert upstream.calls[0]["include"] == ["reasoning.encrypted_content"]
+    assert upstream.calls[0]["reasoning"] == {"effort": "low"}
+    assert "include" not in upstream.calls[0]
 
 
 def test_chat_preserves_explicit_none_when_tools_are_present():
@@ -175,11 +169,8 @@ def test_chat_uses_low_for_omitted_effort_when_tool_history_is_present():
     )
 
     assert response.status_code == 200
-    assert upstream.calls[0]["reasoning"] == {
-        "effort": "low",
-        "summary": "auto",
-    }
-    assert upstream.calls[0]["include"] == ["reasoning.encrypted_content"]
+    assert upstream.calls[0]["reasoning"] == {"effort": "low"}
+    assert "include" not in upstream.calls[0]
 
 
 def test_models_does_not_advertise_a_hardcoded_chat_catalog():

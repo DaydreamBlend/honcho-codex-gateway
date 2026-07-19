@@ -265,9 +265,10 @@ Honcho serializes `ModelConfig.thinking_effort` as the Chat Completions
 `reasoning_effort` field. When present, the gateway forwards that value unchanged
 and only uses `CODEX_GATEWAY_REASONING_EFFORT` as a fallback when the request omits
 it. That fallback defaults to `none`, preserving Honcho's original omitted-effort,
-no-reasoning behavior. For `none`, the adapter sends only the effort and omits
-`reasoning.summary` plus `reasoning.encrypted_content`; requesting either artifact
-without reasoning caused reproducible late streaming failures. Honcho's
+no-reasoning behavior. The adapter sends only the selected effort and omits
+`reasoning.summary` plus `reasoning.encrypted_content` for every effort. This
+Chat Completions facade cannot carry those Responses artifacts into the next
+round, and requesting them caused reproducible late streaming failures. Honcho's
 Dialectic `reasoning_level` is a separate agent-level setting and does
 not by itself populate `thinking_effort`.
 
