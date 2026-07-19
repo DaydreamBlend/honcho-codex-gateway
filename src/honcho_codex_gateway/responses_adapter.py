@@ -175,7 +175,7 @@ class LocalCodexResponsesTransport:
             payload_messages = messages[1:]
         if not instructions:
             instructions = DEFAULT_AGENT_IDENTITY
-        reasoning_effort = "none"
+        reasoning_effort = "low"
         reasoning_config = params.get("reasoning_config")
         if isinstance(reasoning_config, Mapping):
             effort = reasoning_config.get("effort")
