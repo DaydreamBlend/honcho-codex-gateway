@@ -21,6 +21,7 @@ ENV_PATH = ROOT / ".env"
 ENV_EXAMPLE = ROOT / ".env.example"
 AUTH_DIR = ROOT / ".auth"
 MODELS_DIR = ROOT / "models"
+DEFAULT_CHAT_MODEL = "gpt-5.6-luna"
 
 HONCHO_ENV_TEMPLATE = """# Honcho -> honcho-codex-gateway provider boundary (.env form)
 LLM_OPENAI_API_KEY={gateway_api_key}
@@ -177,7 +178,11 @@ def _apply_honcho_env(honcho_dir: Path, env_block: str, *, embedding_dimensions:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Prepare honcho-codex-gateway before fresh Honcho startup")
     parser.add_argument("--gateway-base-url", default="http://codex-gateway:8787/v1")
-    parser.add_argument("--chat-model", default="gpt-5.4-mini")
+    parser.add_argument(
+        "--chat-model",
+        default=DEFAULT_CHAT_MODEL,
+        help=f"Chat model Honcho requests through the gateway (default: {DEFAULT_CHAT_MODEL})",
+    )
     parser.add_argument("--embedding-model", default="text-embedding-bge-m3")
     parser.add_argument("--embedding-dimensions", default="auto", help="Embedding vector dimensions, or 'auto' to read GGUF metadata")
     parser.add_argument("--embedding-max-input-tokens", default=8192, type=int, help="Honcho embedding chunk cap. With the tokenizer patch enabled, the default can match BGE-M3's 8192-token GGUF limit")

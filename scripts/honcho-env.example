@@ -3,7 +3,7 @@
 LLM_OPENAI_API_KEY=<GATEWAY_API_KEY>
 
 DIALECTIC_LEVELS__minimal__MODEL_CONFIG__TRANSPORT=openai
-DIALECTIC_LEVELS__minimal__MODEL_CONFIG__MODEL=gpt-5.4-mini
+DIALECTIC_LEVELS__minimal__MODEL_CONFIG__MODEL=gpt-5.6-luna
 DIALECTIC_LEVELS__minimal__MODEL_CONFIG__OVERRIDES__BASE_URL=http://codex-gateway:8787/v1
 # Repeat the same BASE_URL/model pattern for low/medium/high/max, summary, deriver, and dream configs.
 

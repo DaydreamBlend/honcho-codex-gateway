@@ -63,11 +63,10 @@ def create_app(*, bridge: CodexChatBridge | None = None, config: GatewayConfig |
 
     @app.get("/v1/models", dependencies=[Depends(require_auth)])
     def models() -> dict[str, Any]:
-        ids = [
-            "gpt-5.4-mini",
-            "gpt-5.5",
-            resolved_config.embedding_model,
-        ]
+        # Chat model IDs are owned by the authenticated Codex upstream and can
+        # change independently of this gateway. Chat requests therefore use
+        # model pass-through instead of a gateway-maintained allowlist/catalog.
+        ids = [resolved_config.embedding_model] if resolved_config.embedding_backend == "proxy" else []
         return {"object": "list", "data": [{"id": model, "object": "model", "owned_by": "local"} for model in ids]}
 
     @app.post("/v1/chat/completions", dependencies=[Depends(require_auth)])

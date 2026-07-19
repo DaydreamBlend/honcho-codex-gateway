@@ -179,7 +179,7 @@ The installer writes the full block, but the important part looks like this:
 LLM_OPENAI_API_KEY=<gateway-api-key-from-honcho-codex-gateway-.env>
 
 DIALECTIC_LEVELS__minimal__MODEL_CONFIG__TRANSPORT=openai
-DIALECTIC_LEVELS__minimal__MODEL_CONFIG__MODEL=gpt-5.4-mini
+DIALECTIC_LEVELS__minimal__MODEL_CONFIG__MODEL=gpt-5.6-luna
 DIALECTIC_LEVELS__minimal__MODEL_CONFIG__OVERRIDES__BASE_URL=http://codex-gateway:8787/v1
 # Same transport/model/base_url pattern for dialectic low/medium/high/max,
 # summary, deriver, dream deduction, and dream induction.
@@ -196,6 +196,46 @@ EMBEDDING_TOKENIZER_API_KEY_ENV=LLM_OPENAI_API_KEY
 EMBEDDING_MODEL_CONFIG__DIMENSIONS_MODE=never
 ```
 
+## Chat model pass-through
+
+For `/v1/chat/completions`, the gateway forwards Honcho's `model` value unchanged to the authenticated Codex Responses backend. It does not keep a chat-model allowlist, alias map, or silent fallback. Model availability is decided by the current Codex account/catalog.
+
+Because that upstream catalog can change independently, `/v1/models` only lists the local embedding model. The installer's default Honcho chat model is `gpt-5.6-luna`; select another upstream model explicitly with `--chat-model`.
+
+```bash
+sudo ./install.sh --chat-model gpt-5.6-luna
+```
+
+## Updating Honcho and switching an existing install to Luna
+
+The tokenizer patch intentionally modifies `src/embedding_client.py`, so restore that generated patch before pulling Honcho. Stop if `git status` shows unrelated tracked changes.
+
+```bash
+# 1. Update the Honcho checkout.
+cd /path/to/honcho
+git status --short
+git restore src/embedding_client.py
+rm -f src/embedding_client.py.bak.honcho-codex-gateway-*
+git pull --ff-only
+
+# 2. Update the gateway, rewrite all nine Honcho chat routes to Luna,
+#    and reapply the tokenizer/Compose integration patches.
+cd ../honcho-codex-gateway
+git pull --ff-only
+sudo ./install.sh \
+  --honcho-dir ../honcho \
+  --chat-model gpt-5.6-luna \
+  --skip-auth \
+  --non-interactive
+
+# 3. Rebuild the gateway first, then Honcho.
+sudo docker compose up -d --build
+cd ../honcho
+sudo docker compose up -d --build
+```
+
+`--skip-auth` preserves the existing Codex OAuth login. Omit it only when re-authentication is needed. The installer backs up Honcho `.env`, updates Dialectic minimal/low/medium/high/max, Summary, Deriver, and both Dream routes, then reapplies the GGUF tokenizer patch.
+
 ## Smoke tests
 
 Gateway health:
@@ -211,6 +251,15 @@ curl -sS http://127.0.0.1:8000/health
 ```
 
 Gateway endpoints under `/v1/*` require an Authorization header using `GATEWAY_API_KEY` from the gateway `.env`.
+
+Direct Luna chat through the gateway:
+
+```bash
+curl -sS -X POST http://127.0.0.1:8787/v1/chat/completions \
+  -H "Authorization: Bearer ***" \
+  -H 'content-type: application/json' \
+  -d '{"model":"gpt-5.6-luna","messages":[{"role":"user","content":"Reply exactly: luna ok"}]}'
+```
 
 Embedding smoke:
 

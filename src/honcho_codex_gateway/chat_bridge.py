@@ -165,9 +165,10 @@ class CodexChatBridge:
         self.last_api_kwargs: dict[str, Any] | None = None
 
     def build_kwargs(self, request: ChatCompletionRequest | Mapping[str, Any]) -> dict[str, Any]:
-        """Build Responses SDK kwargs via the local transport."""
+        """Build Responses SDK kwargs without translating the requested model."""
 
         chat_request = self._as_request(request)
+        requested_model = chat_request.model
         transport_params: dict[str, Any] = {
             "base_url": self.config.codex_base_url,
             "is_codex_backend": True,
@@ -182,7 +183,9 @@ class CodexChatBridge:
             chat_request.response_format,
         )
         api_kwargs = self.transport.build_kwargs(
-            model=chat_request.model,
+            # Honcho selects the model. The gateway deliberately has no chat
+            # model allowlist, alias map, or fallback substitution.
+            model=requested_model,
             messages=messages,
             tools=chat_request.tools,
             **transport_params,
@@ -194,6 +197,7 @@ class CodexChatBridge:
         """Run a fake/injected Responses call and return Chat Completions JSON."""
 
         chat_request = self._as_request(request)
+        requested_model = chat_request.model
         if chat_request.stream:
             raise StreamingNotSupportedError("stream=true is not supported by the MVP adapter")
 
@@ -201,7 +205,7 @@ class CodexChatBridge:
         raw_response = self._invoke_client(api_kwargs)
         normalized = self.transport.normalize_response(raw_response)
         return chat_completion_response(
-            model=chat_request.model,
+            model=requested_model,
             content=normalized.content,
             tool_calls=normalized.tool_calls,
             finish_reason=normalized.finish_reason,

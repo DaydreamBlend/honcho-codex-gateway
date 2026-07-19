@@ -179,7 +179,7 @@ Installer가 full block을 쓰지만, 핵심은 다음 형태입니다.
 LLM_OPENAI_API_KEY=<gateway-api-key-from-honcho-codex-gateway-.env>
 
 DIALECTIC_LEVELS__minimal__MODEL_CONFIG__TRANSPORT=openai
-DIALECTIC_LEVELS__minimal__MODEL_CONFIG__MODEL=gpt-5.4-mini
+DIALECTIC_LEVELS__minimal__MODEL_CONFIG__MODEL=gpt-5.6-luna
 DIALECTIC_LEVELS__minimal__MODEL_CONFIG__OVERRIDES__BASE_URL=http://codex-gateway:8787/v1
 # dialectic low/medium/high/max, summary, deriver, dream deduction,
 # dream induction에도 같은 transport/model/base_url pattern을 씁니다.
@@ -196,6 +196,46 @@ EMBEDDING_TOKENIZER_API_KEY_ENV=LLM_OPENAI_API_KEY
 EMBEDDING_MODEL_CONFIG__DIMENSIONS_MODE=never
 ```
 
+## chat model pass-through
+
+`/v1/chat/completions`에서 gateway는 Honcho 요청의 `model` 값을 바꾸지 않고 authenticated Codex Responses backend로 그대로 전달합니다. Chat-model allowlist, alias map, silent fallback을 두지 않으며, 실제 사용 가능 여부는 현재 Codex account/catalog가 결정합니다.
+
+Upstream catalog는 gateway와 독립적으로 바뀔 수 있으므로 `/v1/models`는 local embedding model만 표시합니다. Installer가 Honcho에 쓰는 default chat model은 `gpt-5.6-luna`이며, 다른 upstream model은 `--chat-model`로 명시할 수 있습니다.
+
+```bash
+sudo ./install.sh --chat-model gpt-5.6-luna
+```
+
+## 기존 Honcho 업데이트와 Luna 전환
+
+Tokenizer patch는 의도적으로 `src/embedding_client.py`를 수정합니다. 따라서 Honcho를 pull하기 전에 생성된 patch를 복원해야 합니다. `git status`에 이 patch 외의 tracked change가 보이면 먼저 멈추고 확인하세요.
+
+```bash
+# 1. Honcho checkout 업데이트
+cd /path/to/honcho
+git status --short
+git restore src/embedding_client.py
+rm -f src/embedding_client.py.bak.honcho-codex-gateway-*
+git pull --ff-only
+
+# 2. Gateway 업데이트, Honcho의 chat route 9개를 Luna로 변경,
+#    tokenizer/Compose integration patch 재적용
+cd ../honcho-codex-gateway
+git pull --ff-only
+sudo ./install.sh \
+  --honcho-dir ../honcho \
+  --chat-model gpt-5.6-luna \
+  --skip-auth \
+  --non-interactive
+
+# 3. Gateway를 먼저 rebuild한 뒤 Honcho rebuild
+sudo docker compose up -d --build
+cd ../honcho
+sudo docker compose up -d --build
+```
+
+`--skip-auth`는 기존 Codex OAuth login을 그대로 유지합니다. Re-authentication이 필요할 때만 빼세요. Installer는 Honcho `.env`를 backup하고 Dialectic minimal/low/medium/high/max, Summary, Deriver, Dream 두 route를 갱신한 뒤 GGUF tokenizer patch를 다시 적용합니다.
+
 ## smoke tests
 
 Gateway health:
@@ -211,6 +251,15 @@ curl -sS http://127.0.0.1:8000/health
 ```
 
 `/v1/*` gateway endpoint는 gateway `.env`의 `GATEWAY_API_KEY`를 사용한 Authorization header가 필요합니다.
+
+Gateway를 통한 direct Luna chat:
+
+```bash
+curl -sS -X POST http://127.0.0.1:8787/v1/chat/completions \
+  -H "Authorization: Bearer ***" \
+  -H 'content-type: application/json' \
+  -d '{"model":"gpt-5.6-luna","messages":[{"role":"user","content":"Reply exactly: luna ok"}]}'
+```
 
 Embedding smoke:
 

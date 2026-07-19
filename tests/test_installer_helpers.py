@@ -1,10 +1,11 @@
 import io
 import struct
+import sys
 from pathlib import Path
 
 import pytest
 
-from honcho_codex_gateway import hf_gguf
+from honcho_codex_gateway import hf_gguf, prepare
 from honcho_codex_gateway.honcho_compose import ensure_honcho_compose, patch_honcho_compose
 from honcho_codex_gateway.gguf_metadata import detect_embedding_dimensions
 from honcho_codex_gateway.prepare import HONCHO_ENV_TEMPLATE, _apply_honcho_env, _compose_mount_path, _resolve_embedding_dimensions
@@ -16,7 +17,7 @@ def test_honcho_env_template_uses_gateway_tokenizer_patch_settings():
         gateway_api_key="key",
         gateway_base_url="http://codex-gateway:8787/v1",
         gateway_tokenizer_base_url="http://codex-gateway:8787",
-        chat_model="gpt-5.4-mini",
+        chat_model="gpt-5.6-luna",
         embedding_model="text-embedding-bge-m3",
         embedding_dimensions=1024,
         embedding_max_input_tokens=8192,
@@ -25,6 +26,18 @@ def test_honcho_env_template_uses_gateway_tokenizer_patch_settings():
     assert "EMBEDDING_MAX_INPUT_TOKENS=8192" in block
     assert "EMBEDDING_TOKENIZER_PROVIDER=gateway" in block
     assert "EMBEDDING_TOKENIZER_BASE_URL=http://codex-gateway:8787" in block
+
+
+def test_prepare_defaults_all_honcho_chat_routes_to_luna(monkeypatch, capsys):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["prepare_fresh_install.py", "--print-only", "--embedding-dimensions", "1024"],
+    )
+
+    prepare.main()
+
+    assert capsys.readouterr().out.count("MODEL_CONFIG__MODEL=gpt-5.6-luna") == 9
 
 
 def _write_fake_gguf(path: Path, *, key: str = "bert.embedding_length", value: int = 1024) -> None:
