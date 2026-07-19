@@ -11,6 +11,7 @@ CODEX_BACKEND_BASE_URL = "https://chatgpt.com/backend-api/codex"
 # original no-reasoning behavior by using `none`; the Responses adapter must
 # not request reasoning summaries or encrypted reasoning for that effort.
 DEFAULT_REASONING_EFFORT = "none"
+DEFAULT_TOOL_REASONING_EFFORT = "low"
 DEFAULT_GATEWAY_MODE: Literal["fake", "live"] = "fake"
 DEFAULT_EMBEDDING_BASE_URL = "http://embedding-server:8080/v1"
 DEFAULT_EMBEDDING_MODEL = "text-embedding-bge-m3"
@@ -21,6 +22,7 @@ class GatewayConfig:
     """Runtime configuration for the local single-user gateway."""
 
     reasoning_effort: str = DEFAULT_REASONING_EFFORT
+    tool_reasoning_effort: str = DEFAULT_TOOL_REASONING_EFFORT
     codex_base_url: str = CODEX_BACKEND_BASE_URL
     mode: Literal["fake", "live"] = DEFAULT_GATEWAY_MODE
     gateway_api_key: str | None = None
@@ -76,9 +78,14 @@ def load_config(environ: Mapping[str, str] | None = None) -> GatewayConfig:
 
     env = os.environ if environ is None else environ
     effort = (env.get("CODEX_GATEWAY_REASONING_EFFORT") or env.get("CODEX_ADAPTER_REASONING_EFFORT") or DEFAULT_REASONING_EFFORT).strip()
+    tool_effort = (
+        env.get("CODEX_GATEWAY_TOOL_REASONING_EFFORT")
+        or DEFAULT_TOOL_REASONING_EFFORT
+    ).strip()
     api_key = (env.get("GATEWAY_API_KEY") or "").strip() or None
     return GatewayConfig(
         reasoning_effort=effort or DEFAULT_REASONING_EFFORT,
+        tool_reasoning_effort=tool_effort or DEFAULT_TOOL_REASONING_EFFORT,
         codex_base_url=(env.get("CODEX_BACKEND_BASE_URL") or CODEX_BACKEND_BASE_URL).strip().rstrip("/"),
         mode=_mode_from_env(env.get("CODEX_GATEWAY_MODE")),
         gateway_api_key=api_key,

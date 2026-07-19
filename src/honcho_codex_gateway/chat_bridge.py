@@ -169,9 +169,18 @@ class CodexChatBridge:
 
         chat_request = self._as_request(request)
         requested_model = chat_request.model
-        requested_effort = (
-            chat_request.effective_reasoning_effort or self.config.reasoning_effort
-        )
+        explicit_effort = chat_request.effective_reasoning_effort
+        if explicit_effort is not None:
+            # Preserve an explicit caller choice even when tools are present.
+            requested_effort = explicit_effort
+        elif chat_request.tools:
+            # Luna's current Codex OAuth route repeatedly fails late in the
+            # stream for none+tools. Honcho omits effort, so use the separately
+            # configurable lowest tool-capable fallback without rewriting
+            # explicit requests.
+            requested_effort = self.config.tool_reasoning_effort
+        else:
+            requested_effort = self.config.reasoning_effort
         transport_params: dict[str, Any] = {
             "base_url": self.config.codex_base_url,
             "is_codex_backend": True,

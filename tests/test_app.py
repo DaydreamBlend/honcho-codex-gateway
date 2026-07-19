@@ -86,6 +86,66 @@ def test_chat_uses_none_without_reasoning_artifacts_when_honcho_omits_effort():
     assert "include" not in upstream.calls[0]
 
 
+def test_chat_uses_low_for_omitted_effort_when_tools_are_present():
+    config = GatewayConfig(mode="fake", embedding_backend="disabled")
+    upstream = StaticFakeResponsesClient()
+    bridge = CodexChatBridge(config=config, client=upstream)
+    client = TestClient(create_app(bridge=bridge, config=config))
+
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "gpt-5.6-luna",
+            "messages": [{"role": "user", "content": "look this up"}],
+            "tools": [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "lookup",
+                        "parameters": {"type": "object", "properties": {}},
+                    },
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    assert upstream.calls[0]["reasoning"] == {
+        "effort": "low",
+        "summary": "auto",
+    }
+    assert upstream.calls[0]["include"] == ["reasoning.encrypted_content"]
+
+
+def test_chat_preserves_explicit_none_when_tools_are_present():
+    config = GatewayConfig(mode="fake", embedding_backend="disabled")
+    upstream = StaticFakeResponsesClient()
+    bridge = CodexChatBridge(config=config, client=upstream)
+    client = TestClient(create_app(bridge=bridge, config=config))
+
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "gpt-5.6-luna",
+            "messages": [{"role": "user", "content": "look this up"}],
+            "reasoning_effort": "none",
+            "tools": [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "lookup",
+                        "parameters": {"type": "object", "properties": {}},
+                    },
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    assert upstream.calls[0]["reasoning"] == {"effort": "none"}
+    assert "include" not in upstream.calls[0]
+
+
 def test_models_does_not_advertise_a_hardcoded_chat_catalog():
     app = create_app(config=GatewayConfig(mode="fake", embedding_backend="proxy"))
     response = TestClient(app).get("/v1/models")
