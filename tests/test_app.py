@@ -43,6 +43,51 @@ def test_chat_model_is_forwarded_without_an_allowlist():
     assert response.json()["model"] == requested_model
 
 
+def test_chat_reasoning_effort_is_forwarded_without_rewriting():
+    config = GatewayConfig(
+        mode="fake",
+        reasoning_effort="medium",
+        embedding_backend="disabled",
+    )
+    upstream = StaticFakeResponsesClient()
+    bridge = CodexChatBridge(config=config, client=upstream)
+    client = TestClient(create_app(bridge=bridge, config=config))
+
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "gpt-5.6-luna",
+            "messages": [{"role": "user", "content": "ping"}],
+            "reasoning_effort": "minimal",
+        },
+    )
+
+    assert response.status_code == 200
+    assert upstream.calls[0]["reasoning"] == {
+        "effort": "minimal",
+        "summary": "auto",
+    }
+
+
+def test_chat_uses_gateway_reasoning_fallback_when_request_omits_it():
+    config = GatewayConfig(
+        mode="fake",
+        reasoning_effort="high",
+        embedding_backend="disabled",
+    )
+    upstream = StaticFakeResponsesClient()
+    bridge = CodexChatBridge(config=config, client=upstream)
+    client = TestClient(create_app(bridge=bridge, config=config))
+
+    response = client.post(
+        "/v1/chat/completions",
+        json={"model": "gpt-5.6-luna", "messages": [{"role": "user", "content": "ping"}]},
+    )
+
+    assert response.status_code == 200
+    assert upstream.calls[0]["reasoning"]["effort"] == "high"
+
+
 def test_models_does_not_advertise_a_hardcoded_chat_catalog():
     app = create_app(config=GatewayConfig(mode="fake", embedding_backend="proxy"))
     response = TestClient(app).get("/v1/models")

@@ -169,10 +169,13 @@ class CodexChatBridge:
 
         chat_request = self._as_request(request)
         requested_model = chat_request.model
+        requested_effort = (
+            chat_request.effective_reasoning_effort or self.config.reasoning_effort
+        )
         transport_params: dict[str, Any] = {
             "base_url": self.config.codex_base_url,
             "is_codex_backend": True,
-            "reasoning_config": {"enabled": True, "effort": self.config.reasoning_effort},
+            "reasoning_config": {"enabled": True, "effort": requested_effort},
         }
         if chat_request.effective_max_tokens is not None:
             transport_params["max_tokens"] = chat_request.effective_max_tokens

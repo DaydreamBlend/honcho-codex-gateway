@@ -261,6 +261,17 @@ curl -sS -X POST http://127.0.0.1:8787/v1/chat/completions \
   -d '{"model":"gpt-5.6-luna","messages":[{"role":"user","content":"Reply exactly: luna ok"}]}'
 ```
 
+Honcho는 `ModelConfig.thinking_effort`를 Chat Completions의
+`reasoning_effort` field로 보냅니다. 요청에 이 값이 있으면 gateway는 그대로
+전달하며, 요청이 생략했을 때만 `CODEX_GATEWAY_REASONING_EFFORT`를 fallback으로
+사용합니다. Honcho Dialectic의 `reasoning_level`은 별도의 agent-level 설정이며,
+그 자체로 `thinking_effort`를 채우지는 않습니다.
+
+현재 `gpt-5.6-luna` Codex backend는 `minimal`을 거부하며, 실제 HTTP 오류가
+Responses API 지원값으로 `none`, `low`, `medium`, `high`, `xhigh`를 알렸습니다.
+모델 reasoning을 끄려는 목적이면 Honcho에 `thinking_effort = "none"`을
+설정하세요. Gateway는 `minimal`을 다른 값으로 몰래 치환하지 않습니다.
+
 Embedding smoke:
 
 ```bash

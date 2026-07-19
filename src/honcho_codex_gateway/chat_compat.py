@@ -36,6 +36,12 @@ class ChatCompletionRequest(BaseModel):
     temperature: float | None = None
     max_tokens: int | None = Field(default=None, ge=1)
     max_completion_tokens: int | None = Field(default=None, ge=1)
+    # Honcho's OpenAI backend serializes ModelConfig.thinking_effort using the
+    # native Chat Completions field name `reasoning_effort`.
+    reasoning_effort: str | None = None
+    # Keep a narrow compatibility alias for direct/non-OpenAI callers that use
+    # Honcho's provider-neutral field name instead.
+    thinking_effort: str | None = None
     stream: bool = False
 
     model_config = ConfigDict(extra="allow")
@@ -51,6 +57,12 @@ class ChatCompletionRequest(BaseModel):
         """Prefer OpenAI's newer `max_completion_tokens` over `max_tokens`."""
 
         return self.max_completion_tokens or self.max_tokens
+
+    @property
+    def effective_reasoning_effort(self) -> str | None:
+        """Return the caller-selected effort without normalizing its value."""
+
+        return self.reasoning_effort or self.thinking_effort
 
 
 def _json_arguments(value: Any) -> str:

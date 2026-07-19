@@ -181,8 +181,6 @@ class LocalCodexResponsesTransport:
             effort = reasoning_config.get("effort")
             if effort:
                 reasoning_effort = str(effort)
-        if reasoning_effort == "minimal":
-            reasoning_effort = "low"
         kwargs: dict[str, Any] = {
             "model": model,
             "instructions": instructions,
