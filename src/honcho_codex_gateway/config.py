@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import os
-from typing import Literal, Mapping
+from typing import Literal, Mapping, cast
 
 CODEX_BACKEND_BASE_URL = "https://chatgpt.com/backend-api/codex"
+DEFAULT_RESPONSES_PROFILE: Literal["auto", "full", "lite"] = "auto"
+DEFAULT_CODEX_ORIGINATOR = "honcho_codex_gateway"
+DEFAULT_CODEX_CLIENT_VERSION = "0.144.1"
 # Honcho leaves ModelConfig.thinking_effort unset by default. Preserve the
 # original no-reasoning behavior by using `none`; the Responses adapter must
 # not request reasoning summaries or encrypted reasoning for that effort.
@@ -23,6 +26,9 @@ class GatewayConfig:
 
     reasoning_effort: str = DEFAULT_REASONING_EFFORT
     tool_reasoning_effort: str = DEFAULT_TOOL_REASONING_EFFORT
+    responses_profile: Literal["auto", "full", "lite"] = DEFAULT_RESPONSES_PROFILE
+    codex_originator: str = DEFAULT_CODEX_ORIGINATOR
+    codex_client_version: str = DEFAULT_CODEX_CLIENT_VERSION
     codex_base_url: str = CODEX_BACKEND_BASE_URL
     mode: Literal["fake", "live"] = DEFAULT_GATEWAY_MODE
     gateway_api_key: str | None = None
@@ -60,6 +66,13 @@ def _embedding_backend_from_env(value: str | None) -> Literal["proxy", "disabled
     raise ValueError("EMBEDDING_BACKEND must be one of: proxy, disabled")
 
 
+def _responses_profile_from_env(value: str | None) -> Literal["auto", "full", "lite"]:
+    raw = (value or DEFAULT_RESPONSES_PROFILE).strip().lower()
+    if raw in {"auto", "full", "lite"}:
+        return cast(Literal["auto", "full", "lite"], raw)
+    raise ValueError("CODEX_GATEWAY_RESPONSES_PROFILE must be one of: auto, full, lite")
+
+
 def _bool_from_env(value: str | None, *, default: bool = False) -> bool:
     if value is None or value == "":
         return default
@@ -86,6 +99,17 @@ def load_config(environ: Mapping[str, str] | None = None) -> GatewayConfig:
     return GatewayConfig(
         reasoning_effort=effort or DEFAULT_REASONING_EFFORT,
         tool_reasoning_effort=tool_effort or DEFAULT_TOOL_REASONING_EFFORT,
+        responses_profile=_responses_profile_from_env(env.get("CODEX_GATEWAY_RESPONSES_PROFILE")),
+        codex_originator=(
+            env.get("CODEX_GATEWAY_ORIGINATOR") or DEFAULT_CODEX_ORIGINATOR
+        ).strip()
+        or DEFAULT_CODEX_ORIGINATOR,
+        codex_client_version=(
+            env.get("CODEX_GATEWAY_CLIENT_VERSION")
+            or env.get("CODEX_GATEWAY_MODELS_CLIENT_VERSION")
+            or DEFAULT_CODEX_CLIENT_VERSION
+        ).strip()
+        or DEFAULT_CODEX_CLIENT_VERSION,
         codex_base_url=(env.get("CODEX_BACKEND_BASE_URL") or CODEX_BACKEND_BASE_URL).strip().rstrip("/"),
         mode=_mode_from_env(env.get("CODEX_GATEWAY_MODE")),
         gateway_api_key=api_key,

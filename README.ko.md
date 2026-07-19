@@ -261,6 +261,23 @@ curl -sS -X POST http://127.0.0.1:8787/v1/chat/completions \
   -d '{"model":"gpt-5.6-luna","messages":[{"role":"user","content":"Reply exactly: luna ok"}]}'
 ```
 
+Gateway는 요청된 model name을 그대로 유지하고, authenticated Codex model
+catalog에서 upstream Responses protocol profile을 선택합니다. 기본값
+`CODEX_GATEWAY_RESPONSES_PROFILE=auto`는 process당 한 번 `/models`를 조회하고,
+`CODEX_GATEWAY_CLIENT_VERSION`을 사용해 각 model의 `use_responses_lite` flag를
+읽습니다. 같은 protocol version을 Gateway 자체 identity인
+`CODEX_GATEWAY_ORIGINATOR=honcho_codex_gateway`와 함께 보내며, official Codex
+CLI를 사칭하지 않습니다. Chat model allowlist나 alias table은 유지하지 않습니다.
+Catalog에 없는 future model도 그대로 전달하며 standard Full Responses profile을
+사용합니다.
+
+Catalog에서 `use_responses_lite=true`인 model은 live client가 Responses Lite
+header를 추가하고, top-level instructions를 developer input item으로 옮기며,
+`reasoning.context=all_turns`와 `parallel_tool_calls=false`를 적용합니다. `false`인
+model은 기존 Full Responses request shape를 유지합니다. Catalog discovery가
+불가능할 때만 operator recovery override로
+`CODEX_GATEWAY_RESPONSES_PROFILE=full` 또는 `lite`를 명시할 수 있습니다.
+
 Honcho는 `ModelConfig.thinking_effort`를 Chat Completions의
 `reasoning_effort` field로 보냅니다. 요청에 이 값이 있으면 gateway는 그대로
 전달하며, 요청이 생략했을 때만 `CODEX_GATEWAY_REASONING_EFFORT`를 fallback으로
@@ -272,10 +289,13 @@ Completions facade는 Responses reasoning artifacts를 다음 round로 보존하
 `reasoning_level`은 별도의 agent-level 설정이며,
 그 자체로 `thinking_effort`를 채우지는 않습니다.
 
-현재 Luna Codex OAuth 경로는 `none`과 function tools를 함께 보낼 때도 반복적으로
-실패합니다. 따라서 effort를 생략한 요청은 tool context가 없으면 `none`, tool 정의나
-tool-call history가 있으면 `CODEX_GATEWAY_TOOL_REASONING_EFFORT`(기본 `low`)를
-사용합니다. 명시된 effort는 명시적 `none`까지 포함해 변경하지 않습니다.
+Effort를 생략한 요청은 tool context가 없으면 `none`, tool 정의나 tool-call
+history가 있으면 `CODEX_GATEWAY_TOOL_REASONING_EFFORT`(기본 `low`)를
+사용합니다. Tool selection과 final synthesis 모두 현재 검증된 가장 낮은
+tool-capable effort를 유지하기 위한 설정입니다. 명시된 effort는 명시적 `none`까지
+포함해 변경하지 않습니다. 올바른 Responses Lite formatting은 기존 Full/Lite
+mismatch를 제거하지만, Codex OAuth backend는 effort와 별개로 간헐적인 late
+`server_error` event를 반환할 수 있습니다.
 
 현재 `gpt-5.6-luna` Codex backend는 `minimal`을 거부하며, 실제 HTTP 오류가
 Responses API 지원값으로 `none`, `low`, `medium`, `high`, `xhigh`를 알렸습니다.

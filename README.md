@@ -261,6 +261,23 @@ curl -sS -X POST http://127.0.0.1:8787/v1/chat/completions \
   -d '{"model":"gpt-5.6-luna","messages":[{"role":"user","content":"Reply exactly: luna ok"}]}'
 ```
 
+The gateway preserves the requested model name and selects the upstream Responses
+protocol profile from the authenticated Codex model catalog. The default
+`CODEX_GATEWAY_RESPONSES_PROFILE=auto` queries `/models` once per process using
+`CODEX_GATEWAY_CLIENT_VERSION` and reads each model's `use_responses_lite` flag.
+The same protocol version is sent with the gateway's own
+`CODEX_GATEWAY_ORIGINATOR=honcho_codex_gateway` identity; the gateway does not
+impersonate the official Codex CLI. It does not maintain a chat-model allowlist
+or alias table. An unlisted future model is still passed through and uses the
+standard Full Responses profile.
+
+For a catalog model marked `use_responses_lite=true`, the live client adds the
+Responses Lite header, moves top-level instructions into a developer input item,
+sets `reasoning.context=all_turns`, and forces `parallel_tool_calls=false`. Models
+marked `false` keep the Full Responses request shape. Operators can use
+`CODEX_GATEWAY_RESPONSES_PROFILE=full` or `lite` only as an explicit recovery
+override when catalog discovery is unavailable.
+
 Honcho serializes `ModelConfig.thinking_effort` as the Chat Completions
 `reasoning_effort` field. When present, the gateway forwards that value unchanged
 and only uses `CODEX_GATEWAY_REASONING_EFFORT` as a fallback when the request omits
@@ -272,11 +289,13 @@ round, and requesting them caused reproducible late streaming failures. Honcho's
 Dialectic `reasoning_level` is a separate agent-level setting and does
 not by itself populate `thinking_effort`.
 
-Luna's current Codex OAuth route also fails reproducibly when `none` is combined
-with function tools. Therefore omitted-effort requests use `none` when tool-less
-and `CODEX_GATEWAY_TOOL_REASONING_EFFORT` (default `low`) when tool definitions or
-tool-call history are present. An explicitly supplied effort is never rewritten,
-including explicit `none`.
+Omitted-effort requests use `none` when tool-less and
+`CODEX_GATEWAY_TOOL_REASONING_EFFORT` (default `low`) when tool definitions or
+tool-call history are present. This keeps both selection and final synthesis on
+the lowest currently proven tool-capable effort. An explicitly supplied effort
+is never rewritten, including explicit `none`. Correct Responses Lite formatting
+removes the old Full/Lite mismatch, but the Codex OAuth backend can still return
+intermittent late `server_error` events independently of the selected effort.
 
 The current Codex backend for `gpt-5.6-luna` rejects `minimal`; its HTTP error
 reports `none`, `low`, `medium`, `high`, and `xhigh` as supported Responses API
