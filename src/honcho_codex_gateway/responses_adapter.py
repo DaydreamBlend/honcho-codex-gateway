@@ -175,7 +175,7 @@ class LocalCodexResponsesTransport:
             payload_messages = messages[1:]
         if not instructions:
             instructions = DEFAULT_AGENT_IDENTITY
-        reasoning_effort = "low"
+        reasoning_effort = "none"
         reasoning_config = params.get("reasoning_config")
         if isinstance(reasoning_config, Mapping):
             effort = reasoning_config.get("effort")
@@ -195,8 +195,17 @@ class LocalCodexResponsesTransport:
         rc = params.get("reasoning_config")
         reasoning_enabled = not (isinstance(rc, Mapping) and rc.get("enabled") is False)
         if reasoning_enabled:
-            kwargs["reasoning"] = {"effort": reasoning_effort, "summary": "auto"}
-            kwargs["include"] = ["reasoning.encrypted_content"]
+            if reasoning_effort == "none":
+                # `none` produces no reasoning artifacts. Requesting either a
+                # summary or encrypted reasoning with Luna causes a late
+                # streaming APIError instead of a useful validation error.
+                kwargs["reasoning"] = {"effort": reasoning_effort}
+            else:
+                kwargs["reasoning"] = {
+                    "effort": reasoning_effort,
+                    "summary": "auto",
+                }
+                kwargs["include"] = ["reasoning.encrypted_content"]
         else:
             kwargs["include"] = []
         timeout = params.get("timeout")

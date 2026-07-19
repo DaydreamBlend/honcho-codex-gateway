@@ -264,16 +264,17 @@ curl -sS -X POST http://127.0.0.1:8787/v1/chat/completions \
 Honcho는 `ModelConfig.thinking_effort`를 Chat Completions의
 `reasoning_effort` field로 보냅니다. 요청에 이 값이 있으면 gateway는 그대로
 전달하며, 요청이 생략했을 때만 `CODEX_GATEWAY_REASONING_EFFORT`를 fallback으로
-사용합니다. 이 fallback 기본값은 Luna의 안정적인 최소 effort인 `low`입니다.
-Luna가 `none`을 지원값으로 안내하더라도 실제 Codex OAuth 반복 검증에서는
-약 32초 후 실패했고, `low`는 정상 완료됐습니다. Honcho Dialectic의
+사용합니다. 이 fallback 기본값은 `none`이며, Honcho가 effort를 생략하던
+원래 no-reasoning 동작을 보존합니다. `none`일 때 adapter는 effort만 보내고
+`reasoning.summary`와 `reasoning.encrypted_content`는 생략합니다. reasoning을
+끄면서 이 산출물들을 요청하면 late streaming failure가 재현됐습니다. Honcho Dialectic의
 `reasoning_level`은 별도의 agent-level 설정이며,
 그 자체로 `thinking_effort`를 채우지는 않습니다.
 
 현재 `gpt-5.6-luna` Codex backend는 `minimal`을 거부하며, 실제 HTTP 오류가
 Responses API 지원값으로 `none`, `low`, `medium`, `high`, `xhigh`를 알렸습니다.
 Gateway는 명시된 effort를, `minimal`까지 포함해 몰래 치환하지 않습니다.
-Honcho가 effort를 생략한 경우에만 안정적인 `low` fallback을 사용합니다.
+Honcho가 effort를 생략한 경우에만 `none` fallback을 사용합니다.
 
 Embedding smoke:
 

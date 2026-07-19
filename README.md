@@ -264,16 +264,17 @@ curl -sS -X POST http://127.0.0.1:8787/v1/chat/completions \
 Honcho serializes `ModelConfig.thinking_effort` as the Chat Completions
 `reasoning_effort` field. When present, the gateway forwards that value unchanged
 and only uses `CODEX_GATEWAY_REASONING_EFFORT` as a fallback when the request omits
-it. That fallback defaults to Luna's lowest stable effort, `low`. Although Luna
-advertises `none`, repeated live Codex OAuth probes failed after about 32 seconds
-while `low` completed successfully. Honcho's
+it. That fallback defaults to `none`, preserving Honcho's original omitted-effort,
+no-reasoning behavior. For `none`, the adapter sends only the effort and omits
+`reasoning.summary` plus `reasoning.encrypted_content`; requesting either artifact
+without reasoning caused reproducible late streaming failures. Honcho's
 Dialectic `reasoning_level` is a separate agent-level setting and does
 not by itself populate `thinking_effort`.
 
 The current Codex backend for `gpt-5.6-luna` rejects `minimal`; its HTTP error
 reports `none`, `low`, `medium`, `high`, and `xhigh` as supported Responses API
 efforts. The gateway deliberately does not rewrite an explicitly requested
-effort, including `minimal`; only omitted effort uses the stable `low` fallback.
+effort, including `minimal`; only omitted effort uses the `none` fallback.
 
 Embedding smoke:
 
