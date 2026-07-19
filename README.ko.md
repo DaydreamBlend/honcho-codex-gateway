@@ -179,7 +179,7 @@ Installer가 full block을 쓰지만, 핵심은 다음 형태입니다.
 LLM_OPENAI_API_KEY=<gateway-api-key-from-honcho-codex-gateway-.env>
 
 DIALECTIC_LEVELS__minimal__MODEL_CONFIG__TRANSPORT=openai
-DIALECTIC_LEVELS__minimal__MODEL_CONFIG__MODEL=gpt-5.6-luna
+DIALECTIC_LEVELS__minimal__MODEL_CONFIG__MODEL=gpt-5.6-terra
 DIALECTIC_LEVELS__minimal__MODEL_CONFIG__OVERRIDES__BASE_URL=http://codex-gateway:8787/v1
 # dialectic low/medium/high/max, summary, deriver, dream deduction,
 # dream induction에도 같은 transport/model/base_url pattern을 씁니다.
@@ -200,13 +200,13 @@ EMBEDDING_MODEL_CONFIG__DIMENSIONS_MODE=never
 
 `/v1/chat/completions`에서 gateway는 Honcho 요청의 `model` 값을 바꾸지 않고 authenticated Codex Responses backend로 그대로 전달합니다. Chat-model allowlist, alias map, silent fallback을 두지 않으며, 실제 사용 가능 여부는 현재 Codex account/catalog가 결정합니다.
 
-Upstream catalog는 gateway와 독립적으로 바뀔 수 있으므로 `/v1/models`는 local embedding model만 표시합니다. Installer가 Honcho에 쓰는 default chat model은 `gpt-5.6-luna`이며, 다른 upstream model은 `--chat-model`로 명시할 수 있습니다.
+Upstream catalog는 gateway와 독립적으로 바뀔 수 있으므로 `/v1/models`는 local embedding model만 표시합니다. Installer가 Honcho에 쓰는 default chat model은 `gpt-5.6-terra`이며, 다른 upstream model은 `--chat-model`로 명시할 수 있습니다.
 
 ```bash
-sudo ./install.sh --chat-model gpt-5.6-luna
+sudo ./install.sh --chat-model gpt-5.6-terra
 ```
 
-## 기존 Honcho 업데이트와 Luna 전환
+## 기존 Honcho 업데이트와 Terra 전환
 
 Tokenizer patch는 의도적으로 `src/embedding_client.py`를 수정합니다. 따라서 Honcho를 pull하기 전에 생성된 patch를 복원해야 합니다. `git status`에 이 patch 외의 tracked change가 보이면 먼저 멈추고 확인하세요.
 
@@ -218,13 +218,13 @@ git restore src/embedding_client.py
 rm -f src/embedding_client.py.bak.honcho-codex-gateway-*
 git pull --ff-only
 
-# 2. Gateway 업데이트, Honcho의 chat route 9개를 Luna로 변경,
+# 2. Gateway 업데이트, Honcho의 chat route 9개를 Terra로 변경,
 #    tokenizer/Compose integration patch 재적용
 cd ../honcho-codex-gateway
 git pull --ff-only
 sudo ./install.sh \
   --honcho-dir ../honcho \
-  --chat-model gpt-5.6-luna \
+  --chat-model gpt-5.6-terra \
   --skip-auth \
   --non-interactive
 
@@ -252,13 +252,13 @@ curl -sS http://127.0.0.1:8000/health
 
 `/v1/*` gateway endpoint는 gateway `.env`의 `GATEWAY_API_KEY`를 사용한 Authorization header가 필요합니다.
 
-Gateway를 통한 direct Luna chat:
+Gateway를 통한 direct Terra chat:
 
 ```bash
 curl -sS -X POST http://127.0.0.1:8787/v1/chat/completions \
   -H "Authorization: Bearer ***" \
   -H 'content-type: application/json' \
-  -d '{"model":"gpt-5.6-luna","messages":[{"role":"user","content":"Reply exactly: luna ok"}]}'
+  -d '{"model":"gpt-5.6-terra","messages":[{"role":"user","content":"Reply exactly: terra ok"}]}'
 ```
 
 Gateway는 요청된 model name을 그대로 유지하고, authenticated Codex model
@@ -295,7 +295,11 @@ history가 있으면 `CODEX_GATEWAY_TOOL_REASONING_EFFORT`(기본 `low`)를
 tool-capable effort를 유지하기 위한 설정입니다. 명시된 effort는 명시적 `none`까지
 포함해 변경하지 않습니다. 올바른 Responses Lite formatting은 기존 Full/Lite
 mismatch를 제거하지만, Codex OAuth backend는 effort와 별개로 간헐적인 late
-`server_error` event를 반환할 수 있습니다.
+`server_error` event를 반환할 수 있습니다. Installer는 현재 `gpt-5.6-terra`를
+기본값으로 사용합니다. Truthful non-Codex originator를 사용한 controlled test에서
+Luna는 간헐적인 late failure가 있었지만 Terra는 같은 plain/tool-loop 요청을
+완료했기 때문입니다. Luna도 `--chat-model gpt-5.6-luna`로 명시 선택할 수 있으며,
+gateway는 model을 몰래 대체하지 않습니다.
 
 현재 `gpt-5.6-luna` Codex backend는 `minimal`을 거부하며, 실제 HTTP 오류가
 Responses API 지원값으로 `none`, `low`, `medium`, `high`, `xhigh`를 알렸습니다.

@@ -21,7 +21,7 @@ ENV_PATH = ROOT / ".env"
 ENV_EXAMPLE = ROOT / ".env.example"
 AUTH_DIR = ROOT / ".auth"
 MODELS_DIR = ROOT / "models"
-DEFAULT_CHAT_MODEL = "gpt-5.6-luna"
+DEFAULT_CHAT_MODEL = "gpt-5.6-terra"
 
 HONCHO_ENV_TEMPLATE = """# Honcho -> honcho-codex-gateway provider boundary (.env form)
 LLM_OPENAI_API_KEY={gateway_api_key}

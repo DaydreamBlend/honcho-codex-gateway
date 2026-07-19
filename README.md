@@ -179,7 +179,7 @@ The installer writes the full block, but the important part looks like this:
 LLM_OPENAI_API_KEY=<gateway-api-key-from-honcho-codex-gateway-.env>
 
 DIALECTIC_LEVELS__minimal__MODEL_CONFIG__TRANSPORT=openai
-DIALECTIC_LEVELS__minimal__MODEL_CONFIG__MODEL=gpt-5.6-luna
+DIALECTIC_LEVELS__minimal__MODEL_CONFIG__MODEL=gpt-5.6-terra
 DIALECTIC_LEVELS__minimal__MODEL_CONFIG__OVERRIDES__BASE_URL=http://codex-gateway:8787/v1
 # Same transport/model/base_url pattern for dialectic low/medium/high/max,
 # summary, deriver, dream deduction, and dream induction.
@@ -200,13 +200,13 @@ EMBEDDING_MODEL_CONFIG__DIMENSIONS_MODE=never
 
 For `/v1/chat/completions`, the gateway forwards Honcho's `model` value unchanged to the authenticated Codex Responses backend. It does not keep a chat-model allowlist, alias map, or silent fallback. Model availability is decided by the current Codex account/catalog.
 
-Because that upstream catalog can change independently, `/v1/models` only lists the local embedding model. The installer's default Honcho chat model is `gpt-5.6-luna`; select another upstream model explicitly with `--chat-model`.
+Because that upstream catalog can change independently, `/v1/models` only lists the local embedding model. The installer's default Honcho chat model is `gpt-5.6-terra`; select another upstream model explicitly with `--chat-model`.
 
 ```bash
-sudo ./install.sh --chat-model gpt-5.6-luna
+sudo ./install.sh --chat-model gpt-5.6-terra
 ```
 
-## Updating Honcho and switching an existing install to Luna
+## Updating Honcho and switching an existing install to Terra
 
 The tokenizer patch intentionally modifies `src/embedding_client.py`, so restore that generated patch before pulling Honcho. Stop if `git status` shows unrelated tracked changes.
 
@@ -218,13 +218,13 @@ git restore src/embedding_client.py
 rm -f src/embedding_client.py.bak.honcho-codex-gateway-*
 git pull --ff-only
 
-# 2. Update the gateway, rewrite all nine Honcho chat routes to Luna,
+# 2. Update the gateway, rewrite all nine Honcho chat routes to Terra,
 #    and reapply the tokenizer/Compose integration patches.
 cd ../honcho-codex-gateway
 git pull --ff-only
 sudo ./install.sh \
   --honcho-dir ../honcho \
-  --chat-model gpt-5.6-luna \
+  --chat-model gpt-5.6-terra \
   --skip-auth \
   --non-interactive
 
@@ -252,13 +252,13 @@ curl -sS http://127.0.0.1:8000/health
 
 Gateway endpoints under `/v1/*` require an Authorization header using `GATEWAY_API_KEY` from the gateway `.env`.
 
-Direct Luna chat through the gateway:
+Direct Terra chat through the gateway:
 
 ```bash
 curl -sS -X POST http://127.0.0.1:8787/v1/chat/completions \
   -H "Authorization: Bearer ***" \
   -H 'content-type: application/json' \
-  -d '{"model":"gpt-5.6-luna","messages":[{"role":"user","content":"Reply exactly: luna ok"}]}'
+  -d '{"model":"gpt-5.6-terra","messages":[{"role":"user","content":"Reply exactly: terra ok"}]}'
 ```
 
 The gateway preserves the requested model name and selects the upstream Responses
@@ -296,6 +296,11 @@ the lowest currently proven tool-capable effort. An explicitly supplied effort
 is never rewritten, including explicit `none`. Correct Responses Lite formatting
 removes the old Full/Lite mismatch, but the Codex OAuth backend can still return
 intermittent late `server_error` events independently of the selected effort.
+The installer currently defaults to `gpt-5.6-terra` because controlled tests with
+a truthful non-Codex originator found intermittent late failures on Luna while
+Terra completed the same plain and tool-loop requests. Luna remains available as
+an explicit `--chat-model gpt-5.6-luna` selection; the gateway never substitutes
+models silently.
 
 The current Codex backend for `gpt-5.6-luna` rejects `minimal`; its HTTP error
 reports `none`, `low`, `medium`, `high`, and `xhigh` as supported Responses API

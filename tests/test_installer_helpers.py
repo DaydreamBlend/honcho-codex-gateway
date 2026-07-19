@@ -28,7 +28,7 @@ def test_honcho_env_template_uses_gateway_tokenizer_patch_settings():
     assert "EMBEDDING_TOKENIZER_BASE_URL=http://codex-gateway:8787" in block
 
 
-def test_prepare_defaults_all_honcho_chat_routes_to_luna(monkeypatch, capsys):
+def test_prepare_defaults_all_honcho_chat_routes_to_terra(monkeypatch, capsys):
     monkeypatch.setattr(
         sys,
         "argv",
@@ -37,7 +37,7 @@ def test_prepare_defaults_all_honcho_chat_routes_to_luna(monkeypatch, capsys):
 
     prepare.main()
 
-    assert capsys.readouterr().out.count("MODEL_CONFIG__MODEL=gpt-5.6-luna") == 9
+    assert capsys.readouterr().out.count("MODEL_CONFIG__MODEL=gpt-5.6-terra") == 9
 
 
 def _write_fake_gguf(path: Path, *, key: str = "bert.embedding_length", value: int = 1024) -> None:

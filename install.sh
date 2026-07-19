@@ -15,7 +15,7 @@ NO_WRITE_HONCHO_ENV=0
 FORCE_EMBEDDING_DIMENSION_CHANGE=0
 HONCHO_DIR="${HONCHO_DIR:-}"
 GATEWAY_BASE_URL="http://codex-gateway:8787/v1"
-CHAT_MODEL="gpt-5.6-luna"
+CHAT_MODEL="gpt-5.6-terra"
 EMBEDDING_MODEL="text-embedding-bge-m3"
 EMBEDDING_DIMENSIONS="auto"
 EMBEDDING_DIMENSIONS_FALLBACK="1024"
@@ -45,7 +45,7 @@ summary stays readable.
 
 Options:
   --gateway-base-url URL       URL Honcho containers should use (default: http://codex-gateway:8787/v1)
-  --chat-model MODEL           Chat model Honcho requests through the gateway (default: gpt-5.6-luna)
+  --chat-model MODEL           Chat model Honcho requests through the gateway (default: gpt-5.6-terra)
   --embedding-preset NAME     Embedding preset (default: bge-m3-fp16; currently the only bundled preset)
   --embedding-model MODEL      Embedding model name for Honcho/gateway (default: text-embedding-bge-m3)
   --embedding-dimensions N     Embedding vector dimensions, or auto (default: auto)
