@@ -196,6 +196,10 @@ EMBEDDING_TOKENIZER_API_KEY_ENV=LLM_OPENAI_API_KEY
 EMBEDDING_MODEL_CONFIG__DIMENSIONS_MODE=never
 ```
 
+`DIALECTIC_LEVELS__minimal__...` 줄은 `minimal` tier에 사용할 model을 지정할 뿐,
+active default를 `minimal`로 바꾸지 않습니다. Honcho는 chat마다 tier를 선택하며
+upstream default는 `low`입니다.
+
 ## chat model pass-through
 
 `/v1/chat/completions`에서 gateway는 Honcho 요청의 `model` 값을 바꾸지 않고 authenticated Codex Responses backend로 그대로 전달합니다. Chat-model allowlist, alias map, silent fallback을 두지 않으며, 실제 사용 가능 여부는 현재 Codex account/catalog가 결정합니다.
@@ -306,32 +310,54 @@ model은 기존 Full Responses request shape를 유지합니다. Catalog discove
 불가능할 때만 operator recovery override로
 `CODEX_GATEWAY_RESPONSES_PROFILE=full` 또는 `lite`를 명시할 수 있습니다.
 
-Honcho는 `ModelConfig.thinking_effort`를 Chat Completions의
-`reasoning_effort` field로 보냅니다. 요청에 이 값이 있으면 gateway는 그대로
-전달하며, 요청이 생략했을 때만 `CODEX_GATEWAY_REASONING_EFFORT`를 fallback으로
-사용합니다. 이 fallback 기본값은 `none`이며, Honcho가 effort를 생략하던
-원래 no-reasoning 동작을 보존합니다. Adapter는 모든 effort에서 선택된 effort만
-보내고 `reasoning.summary`와 `reasoning.encrypted_content`는 생략합니다. 이 Chat
-Completions facade는 Responses reasoning artifacts를 다음 round로 보존하지 못하며,
-해당 산출물을 요청하면 late streaming failure가 재현됐습니다. Honcho Dialectic의
-`reasoning_level`은 별도의 agent-level 설정이며,
-그 자체로 `thinking_effort`를 채우지는 않습니다.
+### Honcho Dialectic level과 model reasoning effort
 
-Effort를 생략한 요청은 tool context가 없으면 `none`, tool 정의나 tool-call
-history가 있으면 `CODEX_GATEWAY_TOOL_REASONING_EFFORT`(기본 `low`)를
-사용합니다. Tool selection과 final synthesis 모두 현재 검증된 가장 낮은
-tool-capable effort를 유지하기 위한 설정입니다. 명시된 effort는 명시적 `none`까지
-포함해 변경하지 않습니다. 올바른 Responses Lite formatting은 기존 Full/Lite
-mismatch를 제거하지만, Codex OAuth backend는 effort와 별개로 간헐적인 late
+둘 다 `low` 같은 단어를 쓸 수 있지만 서로 독립된 control입니다.
+
+| Control | Layer | Values | Default 또는 policy |
+| --- | --- | --- | --- |
+| Honcho `reasoning_level` | Context retrieval, tools, iteration limit를 정하는 Dialectic orchestration | `minimal`, `low`, `medium`, `high`, `max` | Upstream Honcho default는 `low` |
+| Model `thinking_effort` / `reasoning_effort` | Provider-side model compute | Backend별로 다름. 현재 Codex 예시는 `none`, `low`, `medium`, `high`, `xhigh` | 명시값은 그대로 전달하고, Honcho가 field를 생략할 때만 gateway policy 적용 |
+
+원래 5.4 Mini 구성에 사용했던 upstream Honcho revision `60a15e6`에서도
+[API schema](https://github.com/plastic-labs/honcho/blob/60a15e6/src/schemas/api.py#L564-L566)와
+[Dialectic agent](https://github.com/plastic-labs/honcho/blob/60a15e6/src/dialectic/core.py#L62-L70)의
+default는 모두 `low`였습니다. `minimal`은 별도로 명시하는 tier였습니다. 다섯 tier가
+모두 `gpt-5.4-mini`를 가리켰으므로 model 선택이 `minimal` 선택을 의미하지도
+않았습니다. 당시 [tier 설정](https://github.com/plastic-labs/honcho/blob/60a15e6/src/config.py#L946-L982)에서
+`minimal`은 tool iteration 1회와 output 250-token cap을 사용했고, `low`는 tool
+iteration을 최대 5회 허용했습니다. Caller는 request마다 tier를 override할 수 있지만,
+그 선택도 tier에 mapping된 model과는 독립적입니다.
+
+Honcho는 `ModelConfig.thinking_effort`를 Chat Completions의
+`reasoning_effort` field로 보냅니다. 원래 5.4 Mini model config는 이 값을 설정하지
+않았고 Honcho [OpenAI backend](https://github.com/plastic-labs/honcho/blob/60a15e6/src/llm/backends/openai.py#L336-L337)도
+wire field를 생략했습니다. 이는 명시적 `reasoning_effort="none"`과 동일한
+contract가 아닙니다. Field가 생략된 요청에 대해 현재 gateway는 tool context가
+없으면 `CODEX_GATEWAY_REASONING_EFFORT`(기본 `none`), tool 정의나 tool-call
+history가 있으면 `CODEX_GATEWAY_TOOL_REASONING_EFFORT`(기본 `low`)를 사용합니다.
+명시된 effort는 변경하지 않습니다.
+
+Adapter는 모든 effort에서 선택된 effort만 보내고 `reasoning.summary`와
+`reasoning.encrypted_content`는 생략합니다. 이 Chat Completions facade는 Responses
+reasoning artifacts를 다음 round로 보존하지 못하며, 해당 산출물을 요청하면 late
+streaming failure가 재현됐습니다.
+
+이 omitted-effort policy는 tool selection과 final synthesis 모두 현재 검증된 가장
+낮은 tool-capable effort를 유지하기 위한 설정입니다. 올바른 Responses Lite
+formatting은 기존 Full/Lite mismatch를 제거하지만, Codex OAuth backend는
+effort와 별개로 간헐적인 late
 `server_error` event를 반환할 수 있습니다. 위 호환성·안정성 이유로 installer는
 `gpt-5.6-terra`를 기본값으로 사용합니다. Luna도
 `--chat-model gpt-5.6-luna`로 명시 선택할 수 있으며, gateway는 model을 몰래
 대체하지 않습니다.
 
-현재 `gpt-5.6-luna` Codex backend는 `minimal`을 거부하며, 실제 HTTP 오류가
-Responses API 지원값으로 `none`, `low`, `medium`, `high`, `xhigh`를 알렸습니다.
-Gateway는 명시된 effort를, `minimal`까지 포함해 몰래 치환하지 않습니다.
-Honcho가 effort를 생략한 경우에만 `none` fallback을 사용합니다.
+현재 `gpt-5.6-luna` Codex backend가 거부하는 것은 literal model field
+`reasoning_effort="minimal"`입니다. 실제 HTTP 오류는 Responses API effort
+지원값으로 `none`, `low`, `medium`, `high`, `xhigh`를 알렸습니다. 이것은 Honcho의
+agent-level `reasoning_level="minimal"`이 유효한 것과 모순되지 않습니다. Gateway는
+명시된 model effort를 몰래 치환하지 않으며, effort가 생략됐을 때만 위 gateway
+policy를 사용합니다.
 
 Embedding smoke:
 
@@ -351,7 +377,9 @@ curl -sS -X POST http://127.0.0.1:8787/internal/token-count \
   -d '{"model":"text-embedding-bge-m3","input":"smoke"}'
 ```
 
-Honcho chat smoke:
+Honcho chat smoke입니다. 아래 명령은 해당 tier를 확인하려고 `minimal`을 명시한
+것이지 Honcho default `low` 경로를 검사하는 명령이 아닙니다. Upstream default를
+검사하려면 `reasoning_level`을 생략하거나 `low`로 지정하세요.
 
 ```bash
 curl -sS -X POST http://127.0.0.1:8000/v3/workspaces/hermes/peers/honcho-codex-smoke/chat \

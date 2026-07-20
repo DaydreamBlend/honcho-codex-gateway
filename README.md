@@ -196,6 +196,10 @@ EMBEDDING_TOKENIZER_API_KEY_ENV=LLM_OPENAI_API_KEY
 EMBEDDING_MODEL_CONFIG__DIMENSIONS_MODE=never
 ```
 
+The `DIALECTIC_LEVELS__minimal__...` lines assign a model to the `minimal` tier;
+they do not make `minimal` the active default. Honcho chooses a tier for each chat,
+and its upstream default is `low`.
+
 ## Chat model pass-through
 
 For `/v1/chat/completions`, the gateway forwards Honcho's `model` value unchanged to the authenticated Codex Responses backend. It does not keep a chat-model allowlist, alias map, or silent fallback. Model availability is decided by the current Codex account/catalog.
@@ -306,22 +310,41 @@ marked `false` keep the Full Responses request shape. Operators can use
 `CODEX_GATEWAY_RESPONSES_PROFILE=full` or `lite` only as an explicit recovery
 override when catalog discovery is unavailable.
 
-Honcho serializes `ModelConfig.thinking_effort` as the Chat Completions
-`reasoning_effort` field. When present, the gateway forwards that value unchanged
-and only uses `CODEX_GATEWAY_REASONING_EFFORT` as a fallback when the request omits
-it. That fallback defaults to `none`, preserving Honcho's original omitted-effort,
-no-reasoning behavior. The adapter sends only the selected effort and omits
-`reasoning.summary` plus `reasoning.encrypted_content` for every effort. This
-Chat Completions facade cannot carry those Responses artifacts into the next
-round, and requesting them caused reproducible late streaming failures. Honcho's
-Dialectic `reasoning_level` is a separate agent-level setting and does
-not by itself populate `thinking_effort`.
+### Honcho Dialectic level vs model reasoning effort
 
-Omitted-effort requests use `none` when tool-less and
+These are independent controls even when both happen to use words such as `low`:
+
+| Control | Layer | Values | Default or policy |
+| --- | --- | --- | --- |
+| Honcho `reasoning_level` | Dialectic orchestration: context retrieval, tools, and iteration limits | `minimal`, `low`, `medium`, `high`, `max` | Upstream Honcho defaults to `low` |
+| Model `thinking_effort` / `reasoning_effort` | Provider-side model compute | Backend-specific; Codex currently uses values such as `none`, `low`, `medium`, `high`, `xhigh` | Explicit values pass through; this gateway chooses a policy only when Honcho omits the field |
+
+In the upstream Honcho revision used by the original 5.4 Mini setup (`60a15e6`),
+both the [API schema](https://github.com/plastic-labs/honcho/blob/60a15e6/src/schemas/api.py#L564-L566)
+and the [Dialectic agent](https://github.com/plastic-labs/honcho/blob/60a15e6/src/dialectic/core.py#L62-L70)
+defaulted to `low`. `minimal` was a separate explicit tier. All five tiers pointed
+to `gpt-5.4-mini`, so selecting that model did not select `minimal`; the
+[tier configuration](https://github.com/plastic-labs/honcho/blob/60a15e6/src/config.py#L946-L982)
+gave `minimal` one tool iteration and a 250-token output cap, while `low` allowed
+up to five tool iterations. A caller can still override the tier per request;
+that choice remains independent from the model mapped to the tier.
+
+Honcho serializes `ModelConfig.thinking_effort` as the Chat Completions
+`reasoning_effort` field. The original 5.4 Mini model config left it unset, and
+Honcho's [OpenAI backend](https://github.com/plastic-labs/honcho/blob/60a15e6/src/llm/backends/openai.py#L336-L337)
+omitted the wire field; that is not the same contract as explicit
+`reasoning_effort="none"`. For omitted fields, this gateway currently uses
+`CODEX_GATEWAY_REASONING_EFFORT` (default `none`) for tool-less requests and
 `CODEX_GATEWAY_TOOL_REASONING_EFFORT` (default `low`) when tool definitions or
-tool-call history are present. This keeps both selection and final synthesis on
-the lowest currently proven tool-capable effort. An explicitly supplied effort
-is never rewritten, including explicit `none`. Correct Responses Lite formatting
+tool-call history are present. Explicit effort values are forwarded unchanged.
+
+The adapter sends only the selected effort and omits `reasoning.summary` plus
+`reasoning.encrypted_content` for every effort. This Chat Completions facade cannot
+carry those Responses artifacts into the next round, and requesting them caused
+reproducible late streaming failures.
+
+This omitted-effort policy keeps both selection and final synthesis on the lowest
+currently proven tool-capable effort. Correct Responses Lite formatting
 removes the old Full/Lite mismatch, but the Codex OAuth backend can still return
 intermittent late `server_error` events independently of the selected effort.
 For the compatibility and reliability reasons above, the installer defaults to
@@ -329,10 +352,12 @@ For the compatibility and reliability reasons above, the installer defaults to
 `--chat-model gpt-5.6-luna` selection; the gateway never substitutes models
 silently.
 
-The current Codex backend for `gpt-5.6-luna` rejects `minimal`; its HTTP error
-reports `none`, `low`, `medium`, `high`, and `xhigh` as supported Responses API
-efforts. The gateway deliberately does not rewrite an explicitly requested
-effort, including `minimal`; only omitted effort uses the `none` fallback.
+The current Codex backend for `gpt-5.6-luna` rejects the literal model field
+`reasoning_effort="minimal"`; its HTTP error reports `none`, `low`, `medium`,
+`high`, and `xhigh` as supported Responses API efforts. This does not invalidate
+Honcho's agent-level `reasoning_level="minimal"`. The gateway deliberately does
+not rewrite any explicitly requested model effort; only omitted effort uses the
+gateway policy above.
 
 Embedding smoke:
 
@@ -352,7 +377,9 @@ curl -sS -X POST http://127.0.0.1:8787/internal/token-count \
   -d '{"model":"text-embedding-bge-m3","input":"smoke"}'
 ```
 
-Honcho chat smoke, after Honcho is up:
+Honcho chat smoke, after Honcho is up. This command explicitly selects `minimal`
+to exercise that tier; it is not a test of Honcho's default `low` path. Omit
+`reasoning_level` or set it to `low` to test the upstream default.
 
 ```bash
 curl -sS -X POST http://127.0.0.1:8000/v3/workspaces/hermes/peers/honcho-codex-smoke/chat \
