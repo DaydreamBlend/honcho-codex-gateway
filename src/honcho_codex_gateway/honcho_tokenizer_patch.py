@@ -11,14 +11,23 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
-PATCH_MARKER = "HONCHO_CODEX_GATEWAY_TOKENIZER_PATCH_V1"
+PATCH_MARKER = "HONCHO_CODEX_GATEWAY_TOKENIZER_PATCH_V2"
+PATCH_MARKERS = (PATCH_MARKER, "HONCHO_CODEX_GATEWAY_TOKENIZER_PATCH_V1")
 
-IMPORT_SENTINEL = "from typing import Any, Literal, NamedTuple, TypeVar\n"
-PATCH_IMPORTS = "from typing import Any, Literal, NamedTuple, TypeVar\nimport json\nimport os\nimport urllib.error\nimport urllib.request\n"
+IMPORT_PATCHES = (
+    (
+        "from __future__ import annotations\n",
+        "from __future__ import annotations\nimport json\nimport os\nimport urllib.error\nimport urllib.request\n",
+    ),
+    (
+        "from typing import Any, Literal, NamedTuple, TypeVar\n",
+        "from typing import Any, Literal, NamedTuple, TypeVar\nimport json\nimport os\nimport urllib.error\nimport urllib.request\n",
+    ),
+)
 
 HELPER_SENTINEL = "class BatchItem(NamedTuple):\n"
 HELPER_BLOCK = r'''
-# HONCHO_CODEX_GATEWAY_TOKENIZER_PATCH_V1: begin
+# HONCHO_CODEX_GATEWAY_TOKENIZER_PATCH_V2: begin
 
 def _gateway_tokenizer_enabled() -> bool:
     return os.environ.get("EMBEDDING_TOKENIZER_PROVIDER", "").lower() in {"gateway", "llama_cpp", "llamacpp"}
@@ -110,12 +119,12 @@ def _split_text_by_gateway_tokens(client: "_EmbeddingClient", text: str, max_tok
         if boundary >= len(remaining):
             break
         start = max(boundary - overlap_chars, 0)
-        if start == 0 and boundary == 0:
-            break
+        if start == 0:
+            start = boundary
         remaining = remaining[start:].lstrip()
 
     return chunks
-# HONCHO_CODEX_GATEWAY_TOKENIZER_PATCH_V1: end
+# HONCHO_CODEX_GATEWAY_TOKENIZER_PATCH_V2: end
 
 '''
 
@@ -123,6 +132,25 @@ OLD_EMBED_TOKEN = "token_count = len(self.encoding.encode(query))"
 NEW_EMBED_TOKEN = "token_count = _embedding_token_count(self, query)"
 OLD_SIMPLE_TOKEN = "tokens = len(self.encoding.encode(text))"
 NEW_SIMPLE_TOKEN = "tokens = _embedding_token_count(self, text)"
+OLD_SIMPLE_3_1_START = '''        for idx, text in enumerate(texts):
+            token_ids = self.encoding.encode(text)
+            if len(token_ids) > self.max_embedding_tokens:
+'''
+NEW_SIMPLE_3_1_START = '''        for idx, text in enumerate(texts):
+            tokens = _embedding_token_count(self, text)
+            if tokens > self.max_embedding_tokens:
+'''
+OLD_TRUNCATE_3_1 = '''        token_ids = self.encoding.encode(text)
+        keep = self.max_embedding_tokens
+'''
+NEW_TRUNCATE_3_1 = '''        if _gateway_tokenizer_enabled():
+            return _split_text_by_gateway_tokens(
+                self, text, self.max_embedding_tokens
+            )[0]
+
+        token_ids = self.encoding.encode(text)
+        keep = self.max_embedding_tokens
+'''
 OLD_PREPARE = '''        out: dict[str, list[tuple[str, int]]] = {}
         for text_id, text in id_resource_dict.items():
             tokens = self.encoding.encode(text)
@@ -162,18 +190,41 @@ def patch_embedding_client(honcho_dir: Path) -> tuple[bool, Path | None]:
     if not target.exists():
         raise FileNotFoundError(f"Honcho embedding_client.py not found: {target}")
     text = target.read_text()
-    if PATCH_MARKER in text:
+    if any(marker in text for marker in PATCH_MARKERS):
         return False, None
 
     backup = _backup(target)
     patched = text
-    if IMPORT_SENTINEL not in patched:
+    for old, new in IMPORT_PATCHES:
+        if old in patched:
+            patched = patched.replace(old, new, 1)
+            break
+    else:
         raise RuntimeError("Could not find import sentinel in embedding_client.py")
-    patched = patched.replace(IMPORT_SENTINEL, PATCH_IMPORTS, 1)
     if HELPER_SENTINEL not in patched:
         raise RuntimeError("Could not find helper insertion point in embedding_client.py")
     patched = patched.replace(HELPER_SENTINEL, HELPER_BLOCK + HELPER_SENTINEL, 1)
-    for old, new in ((OLD_EMBED_TOKEN, NEW_EMBED_TOKEN), (OLD_SIMPLE_TOKEN, NEW_SIMPLE_TOKEN), (OLD_PREPARE, NEW_PREPARE)):
+
+    replacements = [(OLD_EMBED_TOKEN, NEW_EMBED_TOKEN), (OLD_PREPARE, NEW_PREPARE)]
+    if OLD_SIMPLE_3_1_START in patched:
+        replacements.extend(
+            (
+                (OLD_SIMPLE_3_1_START, NEW_SIMPLE_3_1_START),
+                ("original_count = len(token_ids)", "original_count = tokens"),
+                ("{len(token_ids)} tokens)", "{tokens} tokens)"),
+                (
+                    "            else:\n                tokens = len(token_ids)\n            prepared_texts.append(text)",
+                    "            prepared_texts.append(text)",
+                ),
+                (OLD_TRUNCATE_3_1, NEW_TRUNCATE_3_1),
+            )
+        )
+    elif OLD_SIMPLE_TOKEN in patched:
+        replacements.append((OLD_SIMPLE_TOKEN, NEW_SIMPLE_TOKEN))
+    else:
+        raise RuntimeError("Could not find simple_batch_embed token-count target")
+
+    for old, new in replacements:
         if old not in patched:
             raise RuntimeError(f"Could not find patch target: {old[:80]!r}")
         patched = patched.replace(old, new, 1)

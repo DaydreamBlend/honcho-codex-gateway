@@ -228,8 +228,69 @@ def test_apply_honcho_tokenizer_patch_is_idempotent(tmp_path):
     env = (honcho / ".env").read_text()
     assert first["patched"] is True
     assert second["patched"] is False
-    assert "HONCHO_CODEX_GATEWAY_TOKENIZER_PATCH_V1" in patched
+    assert "HONCHO_CODEX_GATEWAY_TOKENIZER_PATCH_V2" in patched
     assert "_split_text_by_gateway_tokens" in patched
     assert "EMBEDDING_TOKENIZER_PROVIDER=gateway" in env
     assert "EMBEDDING_MAX_INPUT_TOKENS=8192" in env
     assert len(list(src.glob("embedding_client.py.bak.honcho-codex-gateway-*"))) == 1
+
+
+def test_apply_honcho_tokenizer_patch_supports_honcho_3_1(tmp_path):
+    honcho = tmp_path / "honcho"
+    src = honcho / "src"
+    src.mkdir(parents=True)
+    (honcho / ".env").write_text("LLM_OPENAI_API_KEY=local\n")
+    (src / "embedding_client.py").write_text(
+        "from __future__ import annotations\n"
+        "from typing import TYPE_CHECKING, Any, Literal, NamedTuple, TypeVar, cast\n"
+        "class EmbeddingTokenLimitError(ValueError):\n"
+        "    pass\n"
+        "class BatchItem(NamedTuple):\n"
+        "    text: str\n"
+        "class _EmbeddingClient:\n"
+        "    async def embed(self, query):\n"
+        "        token_count = len(self.encoding.encode(query))\n"
+        "    def _truncate_to_token_limit(self, text):\n"
+        "        token_ids = self.encoding.encode(text)\n"
+        "        keep = self.max_embedding_tokens\n"
+        "        return text, len(token_ids)\n"
+        "    def unrelated_legacy_counter(self, text):\n"
+        "        tokens = len(self.encoding.encode(text))\n"
+        "    async def simple_batch_embed(self, texts):\n"
+        "        prepared_texts = []\n"
+        "        token_counts = []\n"
+        "        for idx, text in enumerate(texts):\n"
+        "            token_ids = self.encoding.encode(text)\n"
+        "            if len(token_ids) > self.max_embedding_tokens:\n"
+        "                original_count = len(token_ids)\n"
+        "                text, tokens = self._truncate_to_token_limit(text)\n"
+        "                raise ValueError(f\"got {len(token_ids)} tokens)\")\n"
+        "            else:\n"
+        "                tokens = len(token_ids)\n"
+        "            prepared_texts.append(text)\n"
+        "            token_counts.append(tokens)\n"
+        "    def _prepare_chunks(self, id_resource_dict):\n"
+        "        out: dict[str, list[tuple[str, int]]] = {}\n"
+        "        for text_id, text in id_resource_dict.items():\n"
+        "            tokens = self.encoding.encode(text)\n"
+        "            if len(tokens) > self.max_embedding_tokens:\n"
+        "                out[text_id] = _chunk_text_with_tokens(\n"
+        "                    text, tokens, self.max_embedding_tokens, self.encoding\n"
+        "                )\n"
+        "            else:\n"
+        "                out[text_id] = [(text, len(tokens))]\n"
+        "        return out\n"
+    )
+
+    first = apply_honcho_tokenizer_patch(honcho)
+    second = apply_honcho_tokenizer_patch(honcho)
+
+    patched = (src / "embedding_client.py").read_text()
+    assert first["patched"] is True
+    assert second["patched"] is False
+    assert "HONCHO_CODEX_GATEWAY_TOKENIZER_PATCH_V2" in patched
+    assert "token_count = _embedding_token_count(self, query)" in patched
+    assert "if _gateway_tokenizer_enabled():\n            return _split_text_by_gateway_tokens" in patched
+    assert "tokens = _embedding_token_count(self, text)" in patched
+    assert "len(token_ids)} tokens)" not in patched
+    assert "out[text_id] = _split_text_by_gateway_tokens" in patched
