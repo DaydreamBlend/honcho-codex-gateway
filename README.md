@@ -36,7 +36,8 @@ Use it locally, with your own credentials, and do not expose it to the public in
 | Fresh Honcho database | Recommended |
 | Existing Honcho database | Possible, but embedding dimension changes require care |
 | Default embedding model | BGE-M3 FP16 GGUF, 1024 dimensions |
-| macOS / Windows / WSL2 | Not tested yet |
+| Windows 11 + Docker Desktop, existing install/update path | Tested |
+| Native Windows fresh install / WSL2 / macOS | Not fully tested |
 | Public hosted deployment | Not supported |
 
 The default install has been smoke-tested with:
@@ -47,8 +48,12 @@ The default install has been smoke-tested with:
 - BGE-M3 embeddings returning 1024-dimensional vectors
 - gateway `/internal/token-count` returning llama.cpp/GGUF token counts
 - Honcho queue drain to zero pending work units
+- a Honcho 3.1 update on Windows 11 with Docker Desktop while preserving an existing 1024-dimensional pgvector database
+- tokenizer patch V2 application, idempotent reapplication, and Honcho-to-gateway embedding requests after the rebuild
 
 ## Quick install
+
+The automated `sudo ./install.sh` flow below remains Linux-first. Windows validation covered an existing native Windows 11 checkout and Docker Desktop update path, not a fresh installer or OAuth bootstrap.
 
 Clone Honcho and this gateway as sibling directories:
 
@@ -96,7 +101,9 @@ Honcho chunker
 
 Honcho still creates separate embedding chunks itself. The gateway only provides the backend token count.
 
-The patch is marked and idempotent. If a Honcho update replaces the patched file, rerun:
+The patch is marked and idempotent. The current helper supports both the legacy Honcho embedding client and the Honcho 3.1 layout. If a future upstream layout is unknown, it fails before writing a partially patched file.
+
+If a Honcho update replaces the patched file, rerun:
 
 ```bash
 cd <parent-directory>/honcho-codex-gateway
@@ -268,6 +275,8 @@ sudo docker compose up -d --build
 
 `--skip-auth` preserves the existing Codex OAuth login. Omit it only when re-authentication is needed. The installer backs up Honcho `.env`, updates Dialectic minimal/low/medium/high/max, Summary, Deriver, and both Dream routes, then reapplies the GGUF tokenizer patch.
 
+On native Windows, use the equivalent `git` and `docker compose` commands from a shell that provides them and omit `sudo` where it is unavailable. That existing-install update path is tested; the complete fresh-install and OAuth-bootstrap flow is not yet claimed as Windows-tested.
+
 ## Smoke tests
 
 Gateway health:
@@ -392,7 +401,7 @@ curl -sS -X POST http://127.0.0.1:8000/v3/workspaces/hermes/peers/honcho-codex-s
 - The default install is local-only and single-user oriented.
 - The gateway binds to `127.0.0.1` by default.
 - Existing Honcho databases need extra care if their embedding schema is already populated with a different vector dimension.
-- macOS and Windows Docker Desktop may work, but this README only claims Linux testing.
+- Windows 11 with Docker Desktop is tested for an existing Honcho deployment, upstream update, tokenizer-patch reapplication, rebuild, and embedding smoke path. Native Windows fresh install, WSL2, and macOS remain not fully tested.
 - This project depends on user-owned OAuth credentials. Do not share, pool, rotate, or resell credentials.
 
 ## License and provenance

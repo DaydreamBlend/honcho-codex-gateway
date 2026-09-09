@@ -6,7 +6,8 @@ Honcho Codex Gateway is experimental and primarily designed for local, single-us
 
 - Linux is the primary tested environment.
 - macOS is untested / experimental.
-- Windows and WSL2 are untested / experimental.
+- Windows 11 with Docker Desktop is tested for an existing Honcho deployment's update, tokenizer-patch reapplication, rebuild, and embedding smoke path.
+- Native Windows fresh install and WSL2 remain untested / experimental.
 - Public hosted deployment is not supported.
 - Multi-user deployment is not supported.
 - Production API replacement usage is not supported.

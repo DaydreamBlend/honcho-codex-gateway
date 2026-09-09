@@ -36,7 +36,8 @@ Honcho Codex Gateway는 self-hosted Honcho를 Codex-backed chat completions와 l
 | Fresh Honcho database | 권장 |
 | Existing Honcho database | 가능하지만 embedding dimension 변경은 주의 필요 |
 | Default embedding model | BGE-M3 FP16 GGUF, 1024 dimensions |
-| macOS / Windows / WSL2 | 아직 미검증 |
+| Windows 11 + Docker Desktop, existing install/update path | 테스트됨 |
+| Native Windows fresh install / WSL2 / macOS | 아직 완전하게 검증되지 않음 |
 | Public hosted deployment | 지원하지 않음 |
 
 Default install은 다음 경로로 smoke-tested 되었습니다.
@@ -47,8 +48,12 @@ Default install은 다음 경로로 smoke-tested 되었습니다.
 - 1024-dimensional BGE-M3 embeddings
 - llama.cpp/GGUF token count를 반환하는 gateway `/internal/token-count`
 - Honcho queue drain to zero pending work units
+- 기존 1024-dimensional pgvector database를 유지한 Windows 11 + Docker Desktop 환경의 Honcho 3.1 update
+- Rebuild 후 tokenizer patch V2 적용·idempotent 재적용과 Honcho-to-gateway embedding request
 
 ## 빠른 설치
+
+아래의 automated `sudo ./install.sh` 흐름은 여전히 Linux-first입니다. Windows 검증 범위는 기존 native Windows 11 checkout과 Docker Desktop update path이며, fresh installer나 OAuth bootstrap 전체는 포함하지 않습니다.
 
 Honcho와 이 gateway를 sibling directory로 clone합니다.
 
@@ -96,7 +101,9 @@ Honcho chunker
 
 Honcho는 여전히 직접 여러 embedding chunk를 만듭니다. Gateway는 backend token count만 알려줍니다.
 
-Patch는 marker가 있고 idempotent합니다. Honcho update로 patch가 사라졌다면 다시 실행하세요.
+Patch는 marker가 있고 idempotent합니다. 현재 helper는 legacy Honcho embedding client와 Honcho 3.1 layout을 모두 지원합니다. 알 수 없는 future upstream layout에서는 부분적으로 patch된 파일을 쓰지 않고 먼저 실패합니다.
+
+Honcho update로 patch가 사라졌다면 다시 실행하세요.
 
 ```bash
 cd <parent-directory>/honcho-codex-gateway
@@ -268,6 +275,8 @@ sudo docker compose up -d --build
 
 `--skip-auth`는 기존 Codex OAuth login을 그대로 유지합니다. Re-authentication이 필요할 때만 빼세요. Installer는 Honcho `.env`를 backup하고 Dialectic minimal/low/medium/high/max, Summary, Deriver, Dream 두 route를 갱신한 뒤 GGUF tokenizer patch를 다시 적용합니다.
 
+Native Windows에서는 해당 명령을 제공하는 shell에서 같은 `git` 및 `docker compose` 명령을 사용하고, `sudo`를 사용할 수 없다면 생략하세요. 이 existing-install update path는 검증했지만, complete fresh-install 및 OAuth-bootstrap flow까지 Windows-tested라고 주장하지는 않습니다.
+
 ## smoke tests
 
 Gateway health:
@@ -392,7 +401,7 @@ curl -sS -X POST http://127.0.0.1:8000/v3/workspaces/hermes/peers/honcho-codex-s
 - Default install은 local-only, single-user use를 전제로 합니다.
 - Gateway는 기본적으로 `127.0.0.1`에 bind됩니다.
 - Existing Honcho database에 이미 다른 vector dimension의 embedding schema가 채워져 있다면 추가 작업이 필요합니다.
-- macOS와 Windows Docker Desktop은 아직 테스트하지 않았습니다.
+- Windows 11 + Docker Desktop은 existing Honcho deployment의 upstream update, tokenizer patch 재적용, rebuild, embedding smoke path까지 검증했습니다. Native Windows fresh install, WSL2, macOS는 아직 완전하게 검증되지 않았습니다.
 - 이 프로젝트는 사용자 본인의 OAuth credential에 의존합니다. Credential을 공유, pooling, rotation, resale하지 마세요.
 
 ## license and provenance
