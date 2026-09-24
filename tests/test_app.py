@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+import pytest
 
 from honcho_codex_gateway.app import create_app
 from honcho_codex_gateway.chat_bridge import CodexChatBridge, StaticFakeResponsesClient
@@ -109,6 +110,49 @@ def test_chat_uses_low_for_omitted_effort_when_tools_are_present():
     assert response.status_code == 200
     assert upstream.calls[0]["reasoning"] == {"effort": "low"}
     assert "include" not in upstream.calls[0]
+
+
+@pytest.mark.parametrize("tool_choice", ["required", "auto"])
+def test_chat_preserves_tool_choice(tool_choice):
+    config = GatewayConfig(mode="fake", embedding_backend="disabled")
+    upstream = StaticFakeResponsesClient()
+    bridge = CodexChatBridge(config=config, client=upstream)
+    client = TestClient(create_app(bridge=bridge, config=config))
+
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "gpt-5.6-luna",
+            "messages": [{"role": "user", "content": "recall this"}],
+            "tools": [{"type": "function", "function": {"name": "recall", "parameters": {"type": "object", "properties": {}}}}],
+            "tool_choice": tool_choice,
+        },
+    )
+
+    assert response.status_code == 200
+    assert bridge.last_transport_params["tool_choice"] == tool_choice
+    assert upstream.calls[0]["tool_choice"] == tool_choice
+
+
+@pytest.mark.parametrize("cap_field", ["max_tokens", "max_completion_tokens"])
+def test_chat_accepts_cap_without_claiming_or_forwarding_it(cap_field):
+    config = GatewayConfig(mode="fake", embedding_backend="disabled")
+    upstream = StaticFakeResponsesClient()
+    bridge = CodexChatBridge(config=config, client=upstream)
+    client = TestClient(create_app(bridge=bridge, config=config))
+
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "gpt-6-sol",
+            "messages": [{"role": "user", "content": "reply OK"}],
+            cap_field: 128,
+        },
+    )
+
+    assert response.status_code == 200
+    assert "max_tokens" not in bridge.last_transport_params
+    assert not any(key in upstream.calls[0] for key in ("max_output_tokens", "max_tokens", "max_completion_tokens"))
 
 
 def test_chat_preserves_explicit_none_when_tools_are_present():

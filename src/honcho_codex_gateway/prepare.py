@@ -87,9 +87,14 @@ def _upsert_line(text: str, key: str, value: str) -> str:
 
 
 def _compose_mount_path(path: Path) -> str:
-    """Return a Docker Compose .env path that is explicitly project-relative."""
+    """Return a Compose-safe path with forward slashes.
 
-    raw = str(path)
+    Docker Compose accepts POSIX-style separators on every supported host,
+    while native Windows ``Path`` stringification uses backslashes that can be
+    misread in generated ``.env`` bind-mount values.
+    """
+
+    raw = path.as_posix()
     if path.is_absolute() or raw.startswith("./") or raw.startswith("../"):
         return raw
     return f"./{raw}"

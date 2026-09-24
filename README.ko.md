@@ -48,7 +48,7 @@ Default install은 다음 경로로 smoke-tested 되었습니다.
 - 1024-dimensional BGE-M3 embeddings
 - llama.cpp/GGUF token count를 반환하는 gateway `/internal/token-count`
 - Honcho queue drain to zero pending work units
-- 기존 1024-dimensional pgvector database를 유지한 Windows 11 + Docker Desktop 환경의 Honcho 3.1 update
+- 기존 1024-dimensional pgvector database를 유지한 Windows 11 + Docker Desktop 환경의 Honcho 3.2.1 update
 - Rebuild 후 tokenizer patch V2 적용·idempotent 재적용과 Honcho-to-gateway embedding request
 
 ## 빠른 설치
@@ -101,7 +101,7 @@ Honcho chunker
 
 Honcho는 여전히 직접 여러 embedding chunk를 만듭니다. Gateway는 backend token count만 알려줍니다.
 
-Patch는 marker가 있고 idempotent합니다. 현재 helper는 legacy Honcho embedding client와 Honcho 3.1 layout을 모두 지원합니다. 알 수 없는 future upstream layout에서는 부분적으로 patch된 파일을 쓰지 않고 먼저 실패합니다.
+Patch는 marker가 있고 idempotent합니다. 현재 helper는 legacy Honcho embedding client와 Honcho 3.1–3.2.1 layout을 지원합니다. 알 수 없는 future upstream layout에서는 부분적으로 patch된 파일을 쓰지 않고 먼저 실패합니다.
 
 Honcho update로 patch가 사라졌다면 다시 실행하세요.
 
@@ -211,11 +211,15 @@ upstream default는 `low`입니다.
 
 `/v1/chat/completions`에서 gateway는 Honcho 요청의 `model` 값을 바꾸지 않고 authenticated Codex Responses backend로 그대로 전달합니다. Chat-model allowlist, alias map, silent fallback을 두지 않으며, 실제 사용 가능 여부는 현재 Codex account/catalog가 결정합니다.
 
+Honcho 3.2.1 workspace chat은 recall tool이 성공할 때까지 `tool_choice=required`를 사용하고, 이후 `auto`로 완화합니다. Gateway는 두 값을 Responses로 그대로 전달하며 모든 tool 요청을 `auto`로 강제하지 않습니다. Codex OAuth Responses endpoint는 `max_output_tokens`뿐 아니라 `max_tokens`, `max_completion_tokens`도 거부합니다. Gateway는 Honcho 호환성을 위해 cap 필드를 받되 upstream으로 전달하지 않으며 **output-token cap을 강제하지 않습니다.** Honcho의 설정값을 upstream에서 시행되는 한도로 간주하지 마세요.
+
 Upstream catalog는 gateway와 독립적으로 바뀔 수 있으므로 `/v1/models`는 local embedding model만 표시합니다. Installer가 Honcho에 쓰는 default chat model은 `gpt-5.6-terra`이며, 다른 upstream model은 `--chat-model`로 명시할 수 있습니다.
 
 ```bash
 sudo ./install.sh --chat-model gpt-5.6-terra
 ```
+
+기존 설치에서 `gpt-6-sol`을 명시적으로 사용하려면 Honcho의 LLM `*MODEL_CONFIG__MODEL` 값들(embedding model 제외)을 `gpt-6-sol`로 지정하고 gateway의 `CODEX_GATEWAY_CLIENT_VERSION=0.155.0`으로 설정하세요. 이전 compatibility version에서는 Sol이 목록에서 숨겨지거나 거부됩니다. Installer의 기본값은 Terra로 유지되며 다른 설치의 model을 몰래 바꾸지 않습니다.
 
 ### Terra를 기본값으로 쓰는 이유
 

@@ -9,7 +9,7 @@ from typing import Literal, Mapping, cast
 CODEX_BACKEND_BASE_URL = "https://chatgpt.com/backend-api/codex"
 DEFAULT_RESPONSES_PROFILE: Literal["auto", "full", "lite"] = "auto"
 DEFAULT_CODEX_ORIGINATOR = "honcho_codex_gateway"
-DEFAULT_CODEX_CLIENT_VERSION = "0.144.1"
+DEFAULT_CODEX_CLIENT_VERSION = "0.155.0"
 # Honcho leaves ModelConfig.thinking_effort unset by default. Preserve the
 # original no-reasoning behavior by using `none`; the Responses adapter must
 # not request reasoning summaries or encrypted reasoning for that effort.

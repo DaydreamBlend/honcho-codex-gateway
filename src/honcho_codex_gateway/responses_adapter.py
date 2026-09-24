@@ -190,7 +190,7 @@ class LocalCodexResponsesTransport:
         converted_tools = responses_tools(tools)
         if converted_tools:
             kwargs["tools"] = converted_tools
-            kwargs["tool_choice"] = "auto"
+            kwargs["tool_choice"] = params.get("tool_choice") or "auto"
             kwargs["parallel_tool_calls"] = True
         rc = params.get("reasoning_config")
         reasoning_enabled = not (isinstance(rc, Mapping) and rc.get("enabled") is False)

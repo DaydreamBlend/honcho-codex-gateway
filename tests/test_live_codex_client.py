@@ -115,7 +115,7 @@ def test_auto_profile_uses_authenticated_catalog_for_lite_model():
     client.create(**base_kwargs("future-lite-model"))
 
     assert upstream.models.calls == [
-        {"extra_query": {"client_version": "0.144.1"}}
+        {"extra_query": {"client_version": client.config.codex_client_version}}
     ]
     request = upstream.responses.calls[0]
     assert request["model"] == "future-lite-model"
@@ -129,7 +129,7 @@ def test_auto_profile_uses_authenticated_catalog_for_lite_model():
     assert request["parallel_tool_calls"] is False
     assert request["extra_headers"] == {
         "originator": "honcho_codex_gateway",
-        "version": "0.144.1",
+        "version": client.config.codex_client_version,
         "x-openai-internal-codex-responses-lite": "true",
     }
     assert client.last_responses_profile == "lite"
@@ -151,7 +151,7 @@ def test_auto_profile_preserves_full_responses_for_non_lite_model():
     assert request["parallel_tool_calls"] is True
     assert request["extra_headers"] == {
         "originator": "honcho_codex_gateway",
-        "version": "0.144.1",
+        "version": client.config.codex_client_version,
     }
     assert client.last_responses_profile == "full"
 

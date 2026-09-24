@@ -48,7 +48,7 @@ The default install has been smoke-tested with:
 - BGE-M3 embeddings returning 1024-dimensional vectors
 - gateway `/internal/token-count` returning llama.cpp/GGUF token counts
 - Honcho queue drain to zero pending work units
-- a Honcho 3.1 update on Windows 11 with Docker Desktop while preserving an existing 1024-dimensional pgvector database
+- a Honcho 3.2.1 update on Windows 11 with Docker Desktop while preserving an existing 1024-dimensional pgvector database
 - tokenizer patch V2 application, idempotent reapplication, and Honcho-to-gateway embedding requests after the rebuild
 
 ## Quick install
@@ -101,7 +101,7 @@ Honcho chunker
 
 Honcho still creates separate embedding chunks itself. The gateway only provides the backend token count.
 
-The patch is marked and idempotent. The current helper supports both the legacy Honcho embedding client and the Honcho 3.1 layout. If a future upstream layout is unknown, it fails before writing a partially patched file.
+The patch is marked and idempotent. The current helper supports both the legacy Honcho embedding client and the Honcho 3.1–3.2.1 layout. If a future upstream layout is unknown, it fails before writing a partially patched file.
 
 If a Honcho update replaces the patched file, rerun:
 
@@ -211,11 +211,15 @@ and its upstream default is `low`.
 
 For `/v1/chat/completions`, the gateway forwards Honcho's `model` value unchanged to the authenticated Codex Responses backend. It does not keep a chat-model allowlist, alias map, or silent fallback. Model availability is decided by the current Codex account/catalog.
 
+Honcho 3.2.1 workspace chat forces `tool_choice=required` until a recall tool succeeds, then relaxes to `auto`. The gateway forwards both choices to Responses; it does not force `auto` on every tool request. The Codex OAuth Responses endpoint rejects `max_output_tokens` (as well as `max_tokens` and `max_completion_tokens`). The gateway accepts Honcho's cap fields for Chat Completions compatibility but intentionally **does not forward or enforce an output-token cap**. Do not interpret a configured Honcho output cap as an enforced upstream limit.
+
 Because that upstream catalog can change independently, `/v1/models` only lists the local embedding model. The installer's default Honcho chat model is `gpt-5.6-terra`; select another upstream model explicitly with `--chat-model`.
 
 ```bash
 sudo ./install.sh --chat-model gpt-5.6-terra
 ```
+
+For an existing installation explicitly selecting `gpt-6-sol`, set the Honcho LLM `*MODEL_CONFIG__MODEL` entries (not the embedding model) to `gpt-6-sol` and set `CODEX_GATEWAY_CLIENT_VERSION=0.155.0` on the gateway. Older compatibility versions hide or reject Sol. The installer still defaults to Terra; this does not silently change other installations.
 
 ### Why Terra is the default
 

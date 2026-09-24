@@ -34,6 +34,7 @@ class ChatCompletionRequest(BaseModel):
     tool_choice: Any | None = None
     response_format: Any | None = None
     temperature: float | None = None
+    # Accepted for Honcho compatibility; Codex OAuth rejects output-cap fields.
     max_tokens: int | None = Field(default=None, ge=1)
     max_completion_tokens: int | None = Field(default=None, ge=1)
     # Honcho's OpenAI backend serializes ModelConfig.thinking_effort using the
@@ -51,12 +52,6 @@ class ChatCompletionRequest(BaseModel):
 
         return [message.model_dump(exclude_none=True) for message in self.messages]
 
-
-    @property
-    def effective_max_tokens(self) -> int | None:
-        """Prefer OpenAI's newer `max_completion_tokens` over `max_tokens`."""
-
-        return self.max_completion_tokens or self.max_tokens
 
     @property
     def effective_reasoning_effort(self) -> str | None:
