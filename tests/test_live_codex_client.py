@@ -189,6 +189,27 @@ def test_explicit_lite_profile_skips_catalog_lookup():
     assert upstream.responses.calls[0]["reasoning"]["context"] == "all_turns"
 
 
+def test_default_codex_version_is_used_for_catalog_and_responses():
+    config = load_config({})
+    assert config == GatewayConfig()
+    client, upstream = make_live_client(
+        models=[{"slug": "gpt-6.1-sol", "use_responses_lite": True}],
+        config=config,
+    )
+
+    kwargs = base_kwargs("gpt-6.1-sol")
+    kwargs["reasoning"] = {"effort": config.reasoning_effort}
+    client.create(**kwargs)
+
+    assert upstream.models.calls == [{"extra_query": {"client_version": "0.159.2"}}]
+    request = upstream.responses.calls[0]
+    assert request["model"] == "gpt-6.1-sol"
+    assert request["extra_headers"]["version"] == "0.159.2"
+    assert request["extra_headers"]["originator"] == "honcho_codex_gateway"
+    assert request["extra_headers"]["x-openai-internal-codex-responses-lite"] == "true"
+    assert request["reasoning"] == {"effort": "medium", "context": "all_turns"}
+
+
 def test_responses_profile_config_is_validated():
     config = load_config(
         {

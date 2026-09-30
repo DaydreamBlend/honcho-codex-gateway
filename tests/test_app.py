@@ -68,7 +68,7 @@ def test_chat_reasoning_effort_is_forwarded_without_rewriting():
     assert "include" not in upstream.calls[0]
 
 
-def test_chat_uses_none_without_reasoning_artifacts_when_honcho_omits_effort():
+def test_chat_uses_medium_without_reasoning_artifacts_when_honcho_omits_effort():
     config = GatewayConfig(mode="fake", embedding_backend="disabled")
     upstream = StaticFakeResponsesClient()
     bridge = CodexChatBridge(config=config, client=upstream)
@@ -80,11 +80,11 @@ def test_chat_uses_none_without_reasoning_artifacts_when_honcho_omits_effort():
     )
 
     assert response.status_code == 200
-    assert upstream.calls[0]["reasoning"] == {"effort": "none"}
+    assert upstream.calls[0]["reasoning"] == {"effort": "medium"}
     assert "include" not in upstream.calls[0]
 
 
-def test_chat_uses_low_for_omitted_effort_when_tools_are_present():
+def test_chat_uses_medium_for_omitted_effort_when_tools_are_present():
     config = GatewayConfig(mode="fake", embedding_backend="disabled")
     upstream = StaticFakeResponsesClient()
     bridge = CodexChatBridge(config=config, client=upstream)
@@ -108,7 +108,7 @@ def test_chat_uses_low_for_omitted_effort_when_tools_are_present():
     )
 
     assert response.status_code == 200
-    assert upstream.calls[0]["reasoning"] == {"effort": "low"}
+    assert upstream.calls[0]["reasoning"] == {"effort": "medium"}
     assert "include" not in upstream.calls[0]
 
 
@@ -184,7 +184,7 @@ def test_chat_preserves_explicit_none_when_tools_are_present():
     assert "include" not in upstream.calls[0]
 
 
-def test_chat_uses_low_for_omitted_effort_when_tool_history_is_present():
+def test_chat_uses_medium_for_omitted_effort_when_tool_history_is_present():
     config = GatewayConfig(mode="fake", embedding_backend="disabled")
     upstream = StaticFakeResponsesClient()
     bridge = CodexChatBridge(config=config, client=upstream)
@@ -213,7 +213,7 @@ def test_chat_uses_low_for_omitted_effort_when_tool_history_is_present():
     )
 
     assert response.status_code == 200
-    assert upstream.calls[0]["reasoning"] == {"effort": "low"}
+    assert upstream.calls[0]["reasoning"] == {"effort": "medium"}
     assert "include" not in upstream.calls[0]
 
 

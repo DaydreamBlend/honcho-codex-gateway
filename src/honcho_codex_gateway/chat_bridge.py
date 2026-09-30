@@ -178,10 +178,8 @@ class CodexChatBridge:
             # Preserve an explicit caller choice even when tools are present.
             requested_effort = explicit_effort
         elif has_tool_context:
-            # Luna's current Codex OAuth route repeatedly fails late in the
-            # stream for none+tools. Honcho omits effort, so use the separately
-            # configurable lowest tool-capable fallback without rewriting
-            # explicit requests.
+            # Keep tool-loop effort independently configurable without
+            # rewriting an explicit caller choice.
             requested_effort = self.config.tool_reasoning_effort
         else:
             requested_effort = self.config.reasoning_effort

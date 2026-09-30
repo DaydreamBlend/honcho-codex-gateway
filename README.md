@@ -35,6 +35,8 @@ Use it locally, with your own credentials, and do not expose it to the public in
 | Honcho Docker quick install | Primary target |
 | Fresh Honcho database | Recommended |
 | Existing Honcho database | Possible, but embedding dimension changes require care |
+| Default chat model / effort | GPT-6.1 Sol / medium |
+| Codex compatibility version | 0.159.2 |
 | Default embedding model | BGE-M3 FP16 GGUF, 1024 dimensions |
 | Windows 11 + Docker Desktop, existing install/update path | Tested |
 | Native Windows fresh install / WSL2 / macOS | Not fully tested |
@@ -45,6 +47,7 @@ The default install has been smoke-tested with:
 - Honcho API health on `127.0.0.1:8000`
 - gateway health on `127.0.0.1:8787`
 - Codex-backed Honcho chat
+- Codex 0.159.2 compatibility with GPT-6.1 Sol / medium: plain chat, a required-to-auto tool loop, and JSON-object output through Responses Lite
 - BGE-M3 embeddings returning 1024-dimensional vectors
 - gateway `/internal/token-count` returning llama.cpp/GGUF token counts
 - Honcho queue drain to zero pending work units
@@ -186,7 +189,7 @@ The installer writes the full block, but the important part looks like this:
 LLM_OPENAI_API_KEY=<gateway-api-key-from-honcho-codex-gateway-.env>
 
 DIALECTIC_LEVELS__minimal__MODEL_CONFIG__TRANSPORT=openai
-DIALECTIC_LEVELS__minimal__MODEL_CONFIG__MODEL=gpt-5.6-terra
+DIALECTIC_LEVELS__minimal__MODEL_CONFIG__MODEL=gpt-6.1-sol
 DIALECTIC_LEVELS__minimal__MODEL_CONFIG__OVERRIDES__BASE_URL=http://codex-gateway:8787/v1
 # Same transport/model/base_url pattern for dialectic low/medium/high/max,
 # summary, deriver, dream deduction, and dream induction.
@@ -213,43 +216,27 @@ For `/v1/chat/completions`, the gateway forwards Honcho's `model` value unchange
 
 Honcho 3.2.1 workspace chat forces `tool_choice=required` until a recall tool succeeds, then relaxes to `auto`. The gateway forwards both choices to Responses; it does not force `auto` on every tool request. The Codex OAuth Responses endpoint rejects `max_output_tokens` (as well as `max_tokens` and `max_completion_tokens`). The gateway accepts Honcho's cap fields for Chat Completions compatibility but intentionally **does not forward or enforce an output-token cap**. Do not interpret a configured Honcho output cap as an enforced upstream limit.
 
-Because that upstream catalog can change independently, `/v1/models` only lists the local embedding model. The installer's default Honcho chat model is `gpt-5.6-terra`; select another upstream model explicitly with `--chat-model`.
+Because that upstream catalog can change independently, `/v1/models` only lists the local embedding model. The installer's default Honcho chat model is **GPT-6.1 Sol (`gpt-6.1-sol`)**, with **`medium`** effort for both plain requests and tool loops when the caller omits model effort. Select another model with `--chat-model`; explicitly requested efforts still pass through unchanged.
 
 ```bash
-sudo ./install.sh --chat-model gpt-5.6-terra
+sudo ./install.sh --chat-model gpt-6.1-sol
 ```
 
-For an existing installation explicitly selecting `gpt-6-sol`, set the Honcho LLM `*MODEL_CONFIG__MODEL` entries (not the embedding model) to `gpt-6-sol` and set `CODEX_GATEWAY_CLIENT_VERSION=0.155.0` on the gateway. Older compatibility versions hide or reject Sol. The installer still defaults to Terra; this does not silently change other installations.
+### Codex 0.159.2 compatibility
 
-### Why Terra is the default
+The gateway defaults to compatibility version **`0.159.2`**. In the authenticated catalog checked on 2026-09-30, `gpt-6.1-sol` was `visibility=list`, `supported_in_api=true`, and `use_responses_lite=true`, with `medium` effort supported. The existing `auto` profile selects the Lite request shape; no hardcoded model route is needed. Upstream release: [Codex 0.159.2](https://github.com/openai/codex/releases/tag/rust-v0.159.2).
 
-As verified on 2026-07-20, the authenticated Codex catalog still returned
-`gpt-5.4-mini`, but marked it `visibility=hide`, `supported_in_api=true`, and
-`use_responses_lite=false`. Its `upgrade` metadata points to `gpt-5.6-luna` and
-the migration copy says that Mini is no longer available. This explains why Mini
-is absent from the normal Codex OAuth model picker even though an explicit legacy
-request can still succeed. In live controls, the gateway sent
-`model=gpt-5.4-mini` unchanged and the response still reported
-`model=gpt-5.4-mini`; the gateway did not fall back to Luna or Terra.
+The installer preserves explicit values in an existing gateway `.env`. To adopt the new defaults, update these values there:
 
-That response label does not prove which internal OpenAI deployment or weights
-served the request. The backend may retain a compatibility route or alias that
-is not externally observable, so this project does not treat hidden Mini as a
-supported production default. In the official Codex client source,
-[`visibility` controls whether a model appears in the picker](https://github.com/openai/codex/blob/3e2f79727a4e8ddfc8e3acb838d496b121094b9e/codex-rs/protocol/src/openai_models.rs#L622-L633),
-while `upgrade` drives an explicit client-side migration prompt; the
-[configured model changes when that migration is accepted](https://github.com/openai/codex/blob/3e2f79727a4e8ddfc8e3acb838d496b121094b9e/codex-rs/tui/src/app/startup_prompts.rs#L182-L203).
-Those code paths do not establish a transparent server-side alias.
+```env
+CODEX_GATEWAY_CLIENT_VERSION=0.159.2
+CODEX_GATEWAY_REASONING_EFFORT=medium
+CODEX_GATEWAY_TOOL_REASONING_EFFORT=medium
+```
 
-Luna is the catalog's advertised Mini successor, but truthful
-`originator=honcho_codex_gateway` controls reproduced intermittent upstream
-`response.failed(server_error)` events after about 31 seconds. Terra is visible,
-`supported_in_api=true`, and completed the corresponding plain and two-round
-tool-loop controls without that failure pattern. The installer therefore uses
-Terra explicitly instead of relying on hidden Mini, silently substituting a
-model, or impersonating the official Codex client.
+Also change Honcho's LLM `*MODEL_CONFIG__MODEL` entries (not the embedding model) to `gpt-6.1-sol` and recreate the containers. The installer command below updates all nine chat routes. `0.159.2` is compatibility metadata used for the catalog query and wire header: the gateway does not run a Codex CLI subprocess or impersonate the official client. Updating the Codex Desktop/CLI binary is separate.
 
-## Updating Honcho and switching an existing install to Terra
+## Updating Honcho and switching an existing install to Sol 6.1 medium
 
 The tokenizer patch intentionally modifies `src/embedding_client.py`, so restore that generated patch before pulling Honcho. Stop if `git status` shows unrelated tracked changes.
 
@@ -261,13 +248,13 @@ git restore src/embedding_client.py
 rm -f src/embedding_client.py.bak.honcho-codex-gateway-*
 git pull --ff-only
 
-# 2. Update the gateway, rewrite all nine Honcho chat routes to Terra,
+# 2. Update the gateway, rewrite all nine Honcho chat routes to Sol 6.1,
 #    and reapply the tokenizer/Compose integration patches.
 cd ../honcho-codex-gateway
 git pull --ff-only
 sudo ./install.sh \
   --honcho-dir ../honcho \
-  --chat-model gpt-5.6-terra \
+  --chat-model gpt-6.1-sol \
   --skip-auth \
   --non-interactive
 
@@ -297,13 +284,13 @@ curl -sS http://127.0.0.1:8000/health
 
 Gateway endpoints under `/v1/*` require an Authorization header using `GATEWAY_API_KEY` from the gateway `.env`.
 
-Direct Terra chat through the gateway:
+Direct Sol 6.1 chat through the gateway:
 
 ```bash
 curl -sS -X POST http://127.0.0.1:8787/v1/chat/completions \
   -H "Authorization: Bearer ***" \
   -H 'content-type: application/json' \
-  -d '{"model":"gpt-5.6-terra","messages":[{"role":"user","content":"Reply exactly: terra ok"}]}'
+  -d '{"model":"gpt-6.1-sol","messages":[{"role":"user","content":"Reply exactly: sol 6.1 ok"}]}'
 ```
 
 The gateway preserves the requested model name and selects the upstream Responses
@@ -330,53 +317,21 @@ These are independent controls even when both happen to use words such as `low`:
 | Control | Layer | Values | Default or policy |
 | --- | --- | --- | --- |
 | Honcho `reasoning_level` | Dialectic orchestration: context retrieval, tools, and iteration limits | `minimal`, `low`, `medium`, `high`, `max` | Upstream Honcho defaults to `low` |
-| Model `thinking_effort` / `reasoning_effort` | Provider-side model compute | Backend-specific; Codex currently uses values such as `none`, `low`, `medium`, `high`, `xhigh` | Explicit values pass through; this gateway chooses a policy only when Honcho omits the field |
+| Model `thinking_effort` / `reasoning_effort` | Provider-side model compute | Model-specific; Sol 6.1 lists `low`, `medium`, `high`, `xhigh`, `max`, `ultra` | Explicit values pass through; omitted effort defaults to `medium` |
 
-In the upstream Honcho revision used by the original 5.4 Mini setup (`60a15e6`),
-both the [API schema](https://github.com/plastic-labs/honcho/blob/60a15e6/src/schemas/api.py#L564-L566)
-and the [Dialectic agent](https://github.com/plastic-labs/honcho/blob/60a15e6/src/dialectic/core.py#L62-L70)
-defaulted to `low`. `minimal` was a separate explicit tier. All five tiers pointed
-to `gpt-5.4-mini`, so selecting that model did not select `minimal`; the
-[tier configuration](https://github.com/plastic-labs/honcho/blob/60a15e6/src/config.py#L946-L982)
-gave `minimal` one tool iteration and a 250-token output cap, while `low` allowed
-up to five tool iterations. A caller can still override the tier per request;
-that choice remains independent from the model mapped to the tier.
+Honcho serializes `ModelConfig.thinking_effort` as the Chat Completions `reasoning_effort` field. When that field is omitted, the gateway uses `CODEX_GATEWAY_REASONING_EFFORT` (default `medium`) for tool-less requests and `CODEX_GATEWAY_TOOL_REASONING_EFFORT` (default `medium`) when tool definitions or tool-call history are present. Explicit effort values are forwarded unchanged.
 
-Honcho serializes `ModelConfig.thinking_effort` as the Chat Completions
-`reasoning_effort` field. The original 5.4 Mini model config left it unset, and
-Honcho's [OpenAI backend](https://github.com/plastic-labs/honcho/blob/60a15e6/src/llm/backends/openai.py#L336-L337)
-omitted the wire field; that is not the same contract as explicit
-`reasoning_effort="none"`. For omitted fields, this gateway currently uses
-`CODEX_GATEWAY_REASONING_EFFORT` (default `none`) for tool-less requests and
-`CODEX_GATEWAY_TOOL_REASONING_EFFORT` (default `low`) when tool definitions or
-tool-call history are present. Explicit effort values are forwarded unchanged.
+**Sol 6.1 medium describes model compute, not Honcho's `reasoning_level=medium`.** Honcho's default Dialectic tier remains `low`; the installer maps all five tiers, Summary, Deriver, and both Dream routes to `gpt-6.1-sol`.
 
-The adapter sends only the selected effort and omits `reasoning.summary` plus
-`reasoning.encrypted_content` for every effort. This Chat Completions facade cannot
-carry those Responses artifacts into the next round, and requesting them caused
-reproducible late streaming failures.
+The adapter sends only the selected effort and omits `reasoning.summary` and `reasoning.encrypted_content`. This Chat Completions facade cannot carry those Responses artifacts into the next round. This is not a claim that intermittent late Codex OAuth `server_error` events have been eliminated.
 
-This omitted-effort policy keeps both selection and final synthesis on the lowest
-currently proven tool-capable effort. Correct Responses Lite formatting
-removes the old Full/Lite mismatch, but the Codex OAuth backend can still return
-intermittent late `server_error` events independently of the selected effort.
-For the compatibility and reliability reasons above, the installer defaults to
-`gpt-5.6-terra`. Luna remains available as an explicit
-`--chat-model gpt-5.6-luna` selection; the gateway never substitutes models
-silently.
-
-The current Codex backend for `gpt-5.6-luna` rejects the literal model field
-`reasoning_effort="minimal"`; its HTTP error reports `none`, `low`, `medium`,
-`high`, and `xhigh` as supported Responses API efforts. This does not invalidate
-Honcho's agent-level `reasoning_level="minimal"`. The gateway deliberately does
-not rewrite any explicitly requested model effort; only omitted effort uses the
-gateway policy above.
+The Sol 6.1 catalog listed `low`, `medium`, `high`, `xhigh`, `max`, and `ultra` efforts. A literal model effort of `minimal` is separate from Honcho's valid `reasoning_level="minimal"` orchestration tier. The gateway never rewrites an explicit effort; upstream decides whether it is supported.
 
 Embedding smoke:
 
 ```bash
 curl -sS -X POST http://127.0.0.1:8787/v1/embeddings \
-  -H "Authorization: Bearer <gateway-api-key>" \
+  -H "Authorization: Bearer ***" \
   -H 'content-type: application/json' \
   -d '{"model":"text-embedding-bge-m3","input":"smoke"}'
 ```
@@ -385,7 +340,7 @@ Tokenizer-count smoke:
 
 ```bash
 curl -sS -X POST http://127.0.0.1:8787/internal/token-count \
-  -H "Authorization: Bearer <gateway-api-key>" \
+  -H "Authorization: Bearer ***" \
   -H 'content-type: application/json' \
   -d '{"model":"text-embedding-bge-m3","input":"smoke"}'
 ```

@@ -9,12 +9,11 @@ from typing import Literal, Mapping, cast
 CODEX_BACKEND_BASE_URL = "https://chatgpt.com/backend-api/codex"
 DEFAULT_RESPONSES_PROFILE: Literal["auto", "full", "lite"] = "auto"
 DEFAULT_CODEX_ORIGINATOR = "honcho_codex_gateway"
-DEFAULT_CODEX_CLIENT_VERSION = "0.155.0"
-# Honcho leaves ModelConfig.thinking_effort unset by default. Preserve the
-# original no-reasoning behavior by using `none`; the Responses adapter must
-# not request reasoning summaries or encrypted reasoning for that effort.
-DEFAULT_REASONING_EFFORT = "none"
-DEFAULT_TOOL_REASONING_EFFORT = "low"
+DEFAULT_CODEX_CLIENT_VERSION = "0.159.2"
+# Honcho may omit ModelConfig.thinking_effort. Use medium for both plain
+# requests and tool loops; explicit caller efforts remain unchanged.
+DEFAULT_REASONING_EFFORT = "medium"
+DEFAULT_TOOL_REASONING_EFFORT = DEFAULT_REASONING_EFFORT
 DEFAULT_GATEWAY_MODE: Literal["fake", "live"] = "fake"
 DEFAULT_EMBEDDING_BASE_URL = "http://embedding-server:8080/v1"
 DEFAULT_EMBEDDING_MODEL = "text-embedding-bge-m3"

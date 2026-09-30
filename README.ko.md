@@ -35,6 +35,8 @@ Honcho Codex Gateway는 self-hosted Honcho를 Codex-backed chat completions와 l
 | Honcho Docker quick install | 주요 대상 |
 | Fresh Honcho database | 권장 |
 | Existing Honcho database | 가능하지만 embedding dimension 변경은 주의 필요 |
+| Default chat model / effort | GPT-6.1 Sol / medium |
+| Codex compatibility version | 0.159.2 |
 | Default embedding model | BGE-M3 FP16 GGUF, 1024 dimensions |
 | Windows 11 + Docker Desktop, existing install/update path | 테스트됨 |
 | Native Windows fresh install / WSL2 / macOS | 아직 완전하게 검증되지 않음 |
@@ -45,6 +47,7 @@ Default install은 다음 경로로 smoke-tested 되었습니다.
 - Honcho API health: `127.0.0.1:8000`
 - Gateway health: `127.0.0.1:8787`
 - Codex-backed Honcho chat
+- Codex 0.159.2 compatibility 및 GPT-6.1 Sol / medium: Responses Lite를 통한 plain chat, required-to-auto tool loop, JSON-object output
 - 1024-dimensional BGE-M3 embeddings
 - llama.cpp/GGUF token count를 반환하는 gateway `/internal/token-count`
 - Honcho queue drain to zero pending work units
@@ -186,7 +189,7 @@ Installer가 full block을 쓰지만, 핵심은 다음 형태입니다.
 LLM_OPENAI_API_KEY=<gateway-api-key-from-honcho-codex-gateway-.env>
 
 DIALECTIC_LEVELS__minimal__MODEL_CONFIG__TRANSPORT=openai
-DIALECTIC_LEVELS__minimal__MODEL_CONFIG__MODEL=gpt-5.6-terra
+DIALECTIC_LEVELS__minimal__MODEL_CONFIG__MODEL=gpt-6.1-sol
 DIALECTIC_LEVELS__minimal__MODEL_CONFIG__OVERRIDES__BASE_URL=http://codex-gateway:8787/v1
 # dialectic low/medium/high/max, summary, deriver, dream deduction,
 # dream induction에도 같은 transport/model/base_url pattern을 씁니다.
@@ -213,43 +216,27 @@ upstream default는 `low`입니다.
 
 Honcho 3.2.1 workspace chat은 recall tool이 성공할 때까지 `tool_choice=required`를 사용하고, 이후 `auto`로 완화합니다. Gateway는 두 값을 Responses로 그대로 전달하며 모든 tool 요청을 `auto`로 강제하지 않습니다. Codex OAuth Responses endpoint는 `max_output_tokens`뿐 아니라 `max_tokens`, `max_completion_tokens`도 거부합니다. Gateway는 Honcho 호환성을 위해 cap 필드를 받되 upstream으로 전달하지 않으며 **output-token cap을 강제하지 않습니다.** Honcho의 설정값을 upstream에서 시행되는 한도로 간주하지 마세요.
 
-Upstream catalog는 gateway와 독립적으로 바뀔 수 있으므로 `/v1/models`는 local embedding model만 표시합니다. Installer가 Honcho에 쓰는 default chat model은 `gpt-5.6-terra`이며, 다른 upstream model은 `--chat-model`로 명시할 수 있습니다.
+Upstream catalog는 gateway와 독립적으로 바뀔 수 있으므로 `/v1/models`는 local embedding model만 표시합니다. Installer의 default Honcho chat model은 **GPT-6.1 Sol (`gpt-6.1-sol`)**이며, model effort가 생략된 plain request와 tool loop 모두 **`medium`**을 사용합니다. 다른 model은 `--chat-model`로 명시할 수 있고, 명시된 effort는 그대로 전달합니다.
 
 ```bash
-sudo ./install.sh --chat-model gpt-5.6-terra
+sudo ./install.sh --chat-model gpt-6.1-sol
 ```
 
-기존 설치에서 `gpt-6-sol`을 명시적으로 사용하려면 Honcho의 LLM `*MODEL_CONFIG__MODEL` 값들(embedding model 제외)을 `gpt-6-sol`로 지정하고 gateway의 `CODEX_GATEWAY_CLIENT_VERSION=0.155.0`으로 설정하세요. 이전 compatibility version에서는 Sol이 목록에서 숨겨지거나 거부됩니다. Installer의 기본값은 Terra로 유지되며 다른 설치의 model을 몰래 바꾸지 않습니다.
+### Codex 0.159.2 compatibility
 
-### Terra를 기본값으로 쓰는 이유
+Gateway의 default compatibility version은 **`0.159.2`**입니다. 2026-09-30 authenticated catalog 확인 시 `gpt-6.1-sol`은 `visibility=list`, `supported_in_api=true`, `use_responses_lite=true`이며 `medium` effort를 지원했습니다. 기존 `auto` profile이 해당 Lite request shape를 선택하므로 model별 hardcoded route는 필요하지 않습니다. Upstream release: [Codex 0.159.2](https://github.com/openai/codex/releases/tag/rust-v0.159.2).
 
-2026-07-20 확인 시점에 authenticated Codex catalog는 `gpt-5.4-mini`를 여전히
-반환했지만, `visibility=hide`, `supported_in_api=true`,
-`use_responses_lite=false`로 표시했습니다. `upgrade` metadata는
-`gpt-5.6-luna`를 가리키며 migration 문구는 Mini가 더 이상 제공되지 않는다고
-안내합니다. 따라서 Mini는 일반 Codex OAuth model picker에서는 보이지 않지만,
-명시적인 legacy request는 아직 성공할 수 있습니다. Live control에서 gateway는
-`model=gpt-5.4-mini`를 변경하지 않았고 response도
-`model=gpt-5.4-mini`라고 보고했습니다. Gateway가 Luna나 Terra로 fallback한 것은
-아닙니다.
+기존 gateway `.env`의 명시값은 installer가 보존하므로, 새 기본값으로 전환할 때 다음 값을 직접 갱신하세요.
 
-다만 response의 model label만으로 실제 요청을 처리한 OpenAI 내부 deployment나
-weights를 확인할 수는 없습니다. 외부에서 관찰할 수 없는 compatibility route 또는
-alias가 남아 있을 가능성이 있으므로, 이 프로젝트는 hidden Mini를 지원되는 운영
-기본값으로 간주하지 않습니다. Official Codex client source에서도
-[`visibility`는 model picker 표시 여부를 정하고](https://github.com/openai/codex/blob/3e2f79727a4e8ddfc8e3acb838d496b121094b9e/codex-rs/protocol/src/openai_models.rs#L622-L633),
-`upgrade`는 명시적인 client-side migration prompt를 구동합니다.
-[Configured model은 해당 migration을 수락할 때 변경됩니다](https://github.com/openai/codex/blob/3e2f79727a4e8ddfc8e3acb838d496b121094b9e/codex-rs/tui/src/app/startup_prompts.rs#L182-L203).
-이 client code path만으로 transparent server-side alias가 있다고 볼 수는 없습니다.
+```env
+CODEX_GATEWAY_CLIENT_VERSION=0.159.2
+CODEX_GATEWAY_REASONING_EFFORT=medium
+CODEX_GATEWAY_TOOL_REASONING_EFFORT=medium
+```
 
-Luna는 catalog가 안내하는 Mini 후속 model이지만, 정직한
-`originator=honcho_codex_gateway`를 사용한 control에서는 약 31초 뒤 간헐적인
-upstream `response.failed(server_error)`가 재현됐습니다. Terra는 picker에 표시되고
-`supported_in_api=true`이며, 같은 plain 및 two-round tool-loop control을 해당 실패
-패턴 없이 완료했습니다. 따라서 installer는 hidden Mini에 의존하거나 model을 몰래
-치환하거나 official Codex client를 사칭하지 않고, Terra를 명시적으로 기본 사용합니다.
+Honcho의 LLM `*MODEL_CONFIG__MODEL` 값들(embedding model 제외)도 `gpt-6.1-sol`로 변경하고 container를 recreate해야 합니다. 아래 installer 명령은 chat route 9개를 갱신합니다. `0.159.2`는 catalog query와 wire header에 사용하는 compatibility metadata이며, gateway는 Codex CLI subprocess를 실행하거나 official client identity를 사칭하지 않습니다. Codex Desktop/CLI binary update는 별도입니다.
 
-## 기존 Honcho 업데이트와 Terra 전환
+## 기존 Honcho 업데이트와 Sol 6.1 medium 전환
 
 Tokenizer patch는 의도적으로 `src/embedding_client.py`를 수정합니다. 따라서 Honcho를 pull하기 전에 생성된 patch를 복원해야 합니다. `git status`에 이 patch 외의 tracked change가 보이면 먼저 멈추고 확인하세요.
 
@@ -261,13 +248,13 @@ git restore src/embedding_client.py
 rm -f src/embedding_client.py.bak.honcho-codex-gateway-*
 git pull --ff-only
 
-# 2. Gateway 업데이트, Honcho의 chat route 9개를 Terra로 변경,
+# 2. Gateway 업데이트, Honcho의 chat route 9개를 Sol 6.1로 변경,
 #    tokenizer/Compose integration patch 재적용
 cd ../honcho-codex-gateway
 git pull --ff-only
 sudo ./install.sh \
   --honcho-dir ../honcho \
-  --chat-model gpt-5.6-terra \
+  --chat-model gpt-6.1-sol \
   --skip-auth \
   --non-interactive
 
@@ -297,13 +284,13 @@ curl -sS http://127.0.0.1:8000/health
 
 `/v1/*` gateway endpoint는 gateway `.env`의 `GATEWAY_API_KEY`를 사용한 Authorization header가 필요합니다.
 
-Gateway를 통한 direct Terra chat:
+Gateway를 통한 direct Sol 6.1 chat:
 
 ```bash
 curl -sS -X POST http://127.0.0.1:8787/v1/chat/completions \
   -H "Authorization: Bearer ***" \
   -H 'content-type: application/json' \
-  -d '{"model":"gpt-5.6-terra","messages":[{"role":"user","content":"Reply exactly: terra ok"}]}'
+  -d '{"model":"gpt-6.1-sol","messages":[{"role":"user","content":"Reply exactly: sol 6.1 ok"}]}'
 ```
 
 Gateway는 요청된 model name을 그대로 유지하고, authenticated Codex model
@@ -330,53 +317,21 @@ model은 기존 Full Responses request shape를 유지합니다. Catalog discove
 | Control | Layer | Values | Default 또는 policy |
 | --- | --- | --- | --- |
 | Honcho `reasoning_level` | Context retrieval, tools, iteration limit를 정하는 Dialectic orchestration | `minimal`, `low`, `medium`, `high`, `max` | Upstream Honcho default는 `low` |
-| Model `thinking_effort` / `reasoning_effort` | Provider-side model compute | Backend별로 다름. 현재 Codex 예시는 `none`, `low`, `medium`, `high`, `xhigh` | 명시값은 그대로 전달하고, Honcho가 field를 생략할 때만 gateway policy 적용 |
+| Model `thinking_effort` / `reasoning_effort` | Provider-side model compute | Model별로 다름. Sol 6.1은 `low`, `medium`, `high`, `xhigh`, `max`, `ultra` | 명시값은 그대로 전달하며 생략 시 기본값은 `medium` |
 
-원래 5.4 Mini 구성에 사용했던 upstream Honcho revision `60a15e6`에서도
-[API schema](https://github.com/plastic-labs/honcho/blob/60a15e6/src/schemas/api.py#L564-L566)와
-[Dialectic agent](https://github.com/plastic-labs/honcho/blob/60a15e6/src/dialectic/core.py#L62-L70)의
-default는 모두 `low`였습니다. `minimal`은 별도로 명시하는 tier였습니다. 다섯 tier가
-모두 `gpt-5.4-mini`를 가리켰으므로 model 선택이 `minimal` 선택을 의미하지도
-않았습니다. 당시 [tier 설정](https://github.com/plastic-labs/honcho/blob/60a15e6/src/config.py#L946-L982)에서
-`minimal`은 tool iteration 1회와 output 250-token cap을 사용했고, `low`는 tool
-iteration을 최대 5회 허용했습니다. Caller는 request마다 tier를 override할 수 있지만,
-그 선택도 tier에 mapping된 model과는 독립적입니다.
+Honcho는 `ModelConfig.thinking_effort`를 Chat Completions의 `reasoning_effort` field로 보냅니다. 해당 field가 생략되면 gateway는 tool context가 없는 요청에 `CODEX_GATEWAY_REASONING_EFFORT`(기본 `medium`), tool 정의나 tool-call history가 있는 요청에 `CODEX_GATEWAY_TOOL_REASONING_EFFORT`(기본 `medium`)를 적용합니다. 명시된 effort는 바꾸지 않습니다.
 
-Honcho는 `ModelConfig.thinking_effort`를 Chat Completions의
-`reasoning_effort` field로 보냅니다. 원래 5.4 Mini model config는 이 값을 설정하지
-않았고 Honcho [OpenAI backend](https://github.com/plastic-labs/honcho/blob/60a15e6/src/llm/backends/openai.py#L336-L337)도
-wire field를 생략했습니다. 이는 명시적 `reasoning_effort="none"`과 동일한
-contract가 아닙니다. Field가 생략된 요청에 대해 현재 gateway는 tool context가
-없으면 `CODEX_GATEWAY_REASONING_EFFORT`(기본 `none`), tool 정의나 tool-call
-history가 있으면 `CODEX_GATEWAY_TOOL_REASONING_EFFORT`(기본 `low`)를 사용합니다.
-명시된 effort는 변경하지 않습니다.
+**Sol 6.1 medium은 model compute 설정이지 Honcho의 `reasoning_level=medium`을 의미하지 않습니다.** Honcho의 default Dialectic tier는 계속 `low`이며, installer는 다섯 tier와 Summary, Deriver, Dream 두 route에 `gpt-6.1-sol`을 지정합니다.
 
-Adapter는 모든 effort에서 선택된 effort만 보내고 `reasoning.summary`와
-`reasoning.encrypted_content`는 생략합니다. 이 Chat Completions facade는 Responses
-reasoning artifacts를 다음 round로 보존하지 못하며, 해당 산출물을 요청하면 late
-streaming failure가 재현됐습니다.
+Adapter는 선택된 effort만 보내고 `reasoning.summary`와 `reasoning.encrypted_content`는 생략합니다. 이 Chat Completions facade는 Responses reasoning artifacts를 다음 round로 보존하지 못합니다. Codex OAuth backend의 간헐적 late `server_error`가 완전히 제거됐다고 주장하지는 않습니다.
 
-이 omitted-effort policy는 tool selection과 final synthesis 모두 현재 검증된 가장
-낮은 tool-capable effort를 유지하기 위한 설정입니다. 올바른 Responses Lite
-formatting은 기존 Full/Lite mismatch를 제거하지만, Codex OAuth backend는
-effort와 별개로 간헐적인 late
-`server_error` event를 반환할 수 있습니다. 위 호환성·안정성 이유로 installer는
-`gpt-5.6-terra`를 기본값으로 사용합니다. Luna도
-`--chat-model gpt-5.6-luna`로 명시 선택할 수 있으며, gateway는 model을 몰래
-대체하지 않습니다.
-
-현재 `gpt-5.6-luna` Codex backend가 거부하는 것은 literal model field
-`reasoning_effort="minimal"`입니다. 실제 HTTP 오류는 Responses API effort
-지원값으로 `none`, `low`, `medium`, `high`, `xhigh`를 알렸습니다. 이것은 Honcho의
-agent-level `reasoning_level="minimal"`이 유효한 것과 모순되지 않습니다. Gateway는
-명시된 model effort를 몰래 치환하지 않으며, effort가 생략됐을 때만 위 gateway
-policy를 사용합니다.
+Sol 6.1 catalog가 표시한 effort는 `low`, `medium`, `high`, `xhigh`, `max`, `ultra`입니다. Literal model effort `minimal`은 Honcho의 유효한 orchestration tier `reasoning_level="minimal"`과 별개이며, gateway는 명시값을 다른 값으로 치환하지 않습니다. 실제 사용 가능 여부는 upstream이 결정합니다.
 
 Embedding smoke:
 
 ```bash
 curl -sS -X POST http://127.0.0.1:8787/v1/embeddings \
-  -H "Authorization: Bearer <gateway-api-key>" \
+  -H "Authorization: Bearer ***" \
   -H 'content-type: application/json' \
   -d '{"model":"text-embedding-bge-m3","input":"smoke"}'
 ```
@@ -385,7 +340,7 @@ Tokenizer-count smoke:
 
 ```bash
 curl -sS -X POST http://127.0.0.1:8787/internal/token-count \
-  -H "Authorization: Bearer <gateway-api-key>" \
+  -H "Authorization: Bearer ***" \
   -H 'content-type: application/json' \
   -d '{"model":"text-embedding-bge-m3","input":"smoke"}'
 ```
