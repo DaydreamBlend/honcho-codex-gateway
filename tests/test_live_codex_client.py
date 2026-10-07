@@ -201,10 +201,10 @@ def test_default_codex_version_is_used_for_catalog_and_responses():
     kwargs["reasoning"] = {"effort": config.reasoning_effort}
     client.create(**kwargs)
 
-    assert upstream.models.calls == [{"extra_query": {"client_version": "0.159.2"}}]
+    assert upstream.models.calls == [{"extra_query": {"client_version": "0.160.1"}}]
     request = upstream.responses.calls[0]
     assert request["model"] == "gpt-6.1-sol"
-    assert request["extra_headers"]["version"] == "0.159.2"
+    assert request["extra_headers"]["version"] == "0.160.1"
     assert request["extra_headers"]["originator"] == "honcho_codex_gateway"
     assert request["extra_headers"]["x-openai-internal-codex-responses-lite"] == "true"
     assert request["reasoning"] == {"effort": "medium", "context": "all_turns"}

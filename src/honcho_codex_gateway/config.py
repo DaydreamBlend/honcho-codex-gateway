@@ -9,7 +9,7 @@ from typing import Literal, Mapping, cast
 CODEX_BACKEND_BASE_URL = "https://chatgpt.com/backend-api/codex"
 DEFAULT_RESPONSES_PROFILE: Literal["auto", "full", "lite"] = "auto"
 DEFAULT_CODEX_ORIGINATOR = "honcho_codex_gateway"
-DEFAULT_CODEX_CLIENT_VERSION = "0.159.2"
+DEFAULT_CODEX_CLIENT_VERSION = "0.160.1"
 # Honcho may omit ModelConfig.thinking_effort. Use medium for both plain
 # requests and tool loops; explicit caller efforts remain unchanged.
 DEFAULT_REASONING_EFFORT = "medium"

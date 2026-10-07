@@ -36,7 +36,7 @@ Honcho Codex Gateway는 self-hosted Honcho를 Codex-backed chat completions와 l
 | Fresh Honcho database | 권장 |
 | Existing Honcho database | 가능하지만 embedding dimension 변경은 주의 필요 |
 | Default chat model / effort | GPT-6.1 Sol / medium |
-| Codex compatibility version | 0.159.2 |
+| Codex compatibility version | 0.160.1 |
 | Default embedding model | BGE-M3 FP16 GGUF, 1024 dimensions |
 | Windows 11 + Docker Desktop, existing install/update path | 테스트됨 |
 | Native Windows fresh install / WSL2 / macOS | 아직 완전하게 검증되지 않음 |
@@ -47,7 +47,7 @@ Default install은 다음 경로로 smoke-tested 되었습니다.
 - Honcho API health: `127.0.0.1:8000`
 - Gateway health: `127.0.0.1:8787`
 - Codex-backed Honcho chat
-- Codex 0.159.2 compatibility 및 GPT-6.1 Sol / medium: Responses Lite를 통한 plain chat, required-to-auto tool loop, JSON-object output
+- Codex 0.160.1 compatibility 및 GPT-6.1 Sol / medium: Responses Lite를 통한 plain chat, required-to-auto tool loop, JSON-object output
 - 1024-dimensional BGE-M3 embeddings
 - llama.cpp/GGUF token count를 반환하는 gateway `/internal/token-count`
 - Honcho queue drain to zero pending work units
@@ -222,19 +222,19 @@ Upstream catalog는 gateway와 독립적으로 바뀔 수 있으므로 `/v1/mode
 sudo ./install.sh --chat-model gpt-6.1-sol
 ```
 
-### Codex 0.159.2 compatibility
+### Codex 0.160.1 compatibility
 
-Gateway의 default compatibility version은 **`0.159.2`**입니다. 2026-09-30 authenticated catalog 확인 시 `gpt-6.1-sol`은 `visibility=list`, `supported_in_api=true`, `use_responses_lite=true`이며 `medium` effort를 지원했습니다. 기존 `auto` profile이 해당 Lite request shape를 선택하므로 model별 hardcoded route는 필요하지 않습니다. Upstream release: [Codex 0.159.2](https://github.com/openai/codex/releases/tag/rust-v0.159.2).
+Gateway의 default compatibility version은 **`0.160.1`**입니다. 2026-10-07 authenticated catalog 확인 시 `gpt-6.1-sol`은 `visibility=list`, `supported_in_api=true`, `use_responses_lite=true`이며 `medium` effort를 지원했습니다. 기존 `auto` profile이 해당 Lite request shape를 선택하므로 model별 hardcoded route는 필요하지 않습니다. Upstream release: [Codex 0.160.1](https://github.com/openai/codex/releases/tag/rust-v0.160.1).
 
 기존 gateway `.env`의 명시값은 installer가 보존하므로, 새 기본값으로 전환할 때 다음 값을 직접 갱신하세요.
 
 ```env
-CODEX_GATEWAY_CLIENT_VERSION=0.159.2
+CODEX_GATEWAY_CLIENT_VERSION=0.160.1
 CODEX_GATEWAY_REASONING_EFFORT=medium
 CODEX_GATEWAY_TOOL_REASONING_EFFORT=medium
 ```
 
-Honcho의 LLM `*MODEL_CONFIG__MODEL` 값들(embedding model 제외)도 `gpt-6.1-sol`로 변경하고 container를 recreate해야 합니다. 아래 installer 명령은 chat route 9개를 갱신합니다. `0.159.2`는 catalog query와 wire header에 사용하는 compatibility metadata이며, gateway는 Codex CLI subprocess를 실행하거나 official client identity를 사칭하지 않습니다. Codex Desktop/CLI binary update는 별도입니다.
+Honcho의 LLM `*MODEL_CONFIG__MODEL` 값들(embedding model 제외)도 `gpt-6.1-sol`로 변경하고 container를 recreate해야 합니다. 아래 installer 명령은 chat route 9개를 갱신합니다. `0.160.1`은 catalog query와 wire header에 사용하는 compatibility metadata이며, gateway는 Codex CLI subprocess를 실행하거나 official client identity를 사칭하지 않습니다. Codex Desktop/CLI binary update는 별도입니다.
 
 ## 기존 Honcho 업데이트와 Sol 6.1 medium 전환
 

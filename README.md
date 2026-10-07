@@ -36,7 +36,7 @@ Use it locally, with your own credentials, and do not expose it to the public in
 | Fresh Honcho database | Recommended |
 | Existing Honcho database | Possible, but embedding dimension changes require care |
 | Default chat model / effort | GPT-6.1 Sol / medium |
-| Codex compatibility version | 0.159.2 |
+| Codex compatibility version | 0.160.1 |
 | Default embedding model | BGE-M3 FP16 GGUF, 1024 dimensions |
 | Windows 11 + Docker Desktop, existing install/update path | Tested |
 | Native Windows fresh install / WSL2 / macOS | Not fully tested |
@@ -47,7 +47,7 @@ The default install has been smoke-tested with:
 - Honcho API health on `127.0.0.1:8000`
 - gateway health on `127.0.0.1:8787`
 - Codex-backed Honcho chat
-- Codex 0.159.2 compatibility with GPT-6.1 Sol / medium: plain chat, a required-to-auto tool loop, and JSON-object output through Responses Lite
+- Codex 0.160.1 compatibility with GPT-6.1 Sol / medium: plain chat, a required-to-auto tool loop, and JSON-object output through Responses Lite
 - BGE-M3 embeddings returning 1024-dimensional vectors
 - gateway `/internal/token-count` returning llama.cpp/GGUF token counts
 - Honcho queue drain to zero pending work units
@@ -222,19 +222,19 @@ Because that upstream catalog can change independently, `/v1/models` only lists 
 sudo ./install.sh --chat-model gpt-6.1-sol
 ```
 
-### Codex 0.159.2 compatibility
+### Codex 0.160.1 compatibility
 
-The gateway defaults to compatibility version **`0.159.2`**. In the authenticated catalog checked on 2026-09-30, `gpt-6.1-sol` was `visibility=list`, `supported_in_api=true`, and `use_responses_lite=true`, with `medium` effort supported. The existing `auto` profile selects the Lite request shape; no hardcoded model route is needed. Upstream release: [Codex 0.159.2](https://github.com/openai/codex/releases/tag/rust-v0.159.2).
+The gateway defaults to compatibility version **`0.160.1`**. In the authenticated catalog checked on 2026-10-07, `gpt-6.1-sol` was `visibility=list`, `supported_in_api=true`, and `use_responses_lite=true`, with `medium` effort supported. The existing `auto` profile selects the Lite request shape; no hardcoded model route is needed. Upstream release: [Codex 0.160.1](https://github.com/openai/codex/releases/tag/rust-v0.160.1).
 
 The installer preserves explicit values in an existing gateway `.env`. To adopt the new defaults, update these values there:
 
 ```env
-CODEX_GATEWAY_CLIENT_VERSION=0.159.2
+CODEX_GATEWAY_CLIENT_VERSION=0.160.1
 CODEX_GATEWAY_REASONING_EFFORT=medium
 CODEX_GATEWAY_TOOL_REASONING_EFFORT=medium
 ```
 
-Also change Honcho's LLM `*MODEL_CONFIG__MODEL` entries (not the embedding model) to `gpt-6.1-sol` and recreate the containers. The installer command below updates all nine chat routes. `0.159.2` is compatibility metadata used for the catalog query and wire header: the gateway does not run a Codex CLI subprocess or impersonate the official client. Updating the Codex Desktop/CLI binary is separate.
+Also change Honcho's LLM `*MODEL_CONFIG__MODEL` entries (not the embedding model) to `gpt-6.1-sol` and recreate the containers. The installer command below updates all nine chat routes. `0.160.1` is compatibility metadata used for the catalog query and wire header: the gateway does not run a Codex CLI subprocess or impersonate the official client. Updating the Codex Desktop/CLI binary is separate.
 
 ## Updating Honcho and switching an existing install to Sol 6.1 medium
 
