@@ -36,7 +36,7 @@ Honcho Codex Gateway는 self-hosted Honcho를 Codex-backed chat completions와 l
 | Fresh Honcho database | 권장 |
 | Existing Honcho database | 가능하지만 embedding dimension 변경은 주의 필요 |
 | Default chat model / effort | GPT-6.1 Sol / medium |
-| Codex compatibility version | 0.160.1 |
+| Codex compatibility version | 0.163.0 |
 | Default embedding model | BGE-M3 FP16 GGUF, 1024 dimensions |
 | Windows 11 + Docker Desktop, existing install/update path | 테스트됨 |
 | Native Windows fresh install / WSL2 / macOS | 아직 완전하게 검증되지 않음 |
@@ -47,11 +47,11 @@ Default install은 다음 경로로 smoke-tested 되었습니다.
 - Honcho API health: `127.0.0.1:8000`
 - Gateway health: `127.0.0.1:8787`
 - Codex-backed Honcho chat
-- Codex 0.160.1 compatibility 및 GPT-6.1 Sol / medium: Responses Lite를 통한 plain chat, required-to-auto tool loop, JSON-object output
+- Codex 0.163.0 compatibility 및 GPT-6.1 Sol / medium: Responses Lite를 통한 plain chat, required-to-auto tool loop, JSON-object output
 - 1024-dimensional BGE-M3 embeddings
 - llama.cpp/GGUF token count를 반환하는 gateway `/internal/token-count`
 - Honcho queue drain to zero pending work units
-- 기존 1024-dimensional pgvector database를 유지한 Windows 11 + Docker Desktop 환경의 Honcho 3.2.1 update
+- 기존 1024-dimensional pgvector database를 유지한 Windows 11 + Docker Desktop 환경의 Honcho 3.3.0 update와 message-search trigram index migration
 - Rebuild 후 tokenizer patch V2 적용·idempotent 재적용과 Honcho-to-gateway embedding request
 
 ## 빠른 설치
@@ -104,7 +104,7 @@ Honcho chunker
 
 Honcho는 여전히 직접 여러 embedding chunk를 만듭니다. Gateway는 backend token count만 알려줍니다.
 
-Patch는 marker가 있고 idempotent합니다. 현재 helper는 legacy Honcho embedding client와 Honcho 3.1–3.2.1 layout을 지원합니다. 알 수 없는 future upstream layout에서는 부분적으로 patch된 파일을 쓰지 않고 먼저 실패합니다.
+Patch는 marker가 있고 idempotent합니다. 현재 helper는 legacy Honcho embedding client와 Honcho 3.1–3.3.0 layout 및 public `truncate_to_token_limit` caller를 지원합니다. 알 수 없는 future upstream layout에서는 부분적으로 patch된 파일을 쓰지 않고 먼저 실패합니다.
 
 Honcho update로 patch가 사라졌다면 다시 실행하세요.
 
@@ -214,7 +214,7 @@ upstream default는 `low`입니다.
 
 `/v1/chat/completions`에서 gateway는 Honcho 요청의 `model` 값을 바꾸지 않고 authenticated Codex Responses backend로 그대로 전달합니다. Chat-model allowlist, alias map, silent fallback을 두지 않으며, 실제 사용 가능 여부는 현재 Codex account/catalog가 결정합니다.
 
-Honcho 3.2.1 workspace chat은 recall tool이 성공할 때까지 `tool_choice=required`를 사용하고, 이후 `auto`로 완화합니다. Gateway는 두 값을 Responses로 그대로 전달하며 모든 tool 요청을 `auto`로 강제하지 않습니다. Codex OAuth Responses endpoint는 `max_output_tokens`뿐 아니라 `max_tokens`, `max_completion_tokens`도 거부합니다. Gateway는 Honcho 호환성을 위해 cap 필드를 받되 upstream으로 전달하지 않으며 **output-token cap을 강제하지 않습니다.** Honcho의 설정값을 upstream에서 시행되는 한도로 간주하지 마세요.
+Honcho 3.3.0 workspace chat은 recall tool이 성공할 때까지 `tool_choice=required`를 사용하고, 이후 `auto`로 완화합니다. Gateway는 두 값을 Responses로 그대로 전달하며 모든 tool 요청을 `auto`로 강제하지 않습니다. Codex OAuth Responses endpoint는 `max_output_tokens`뿐 아니라 `max_tokens`, `max_completion_tokens`도 거부합니다. Gateway는 Honcho 호환성을 위해 cap 필드를 받되 upstream으로 전달하지 않으며 **output-token cap을 강제하지 않습니다.** Honcho의 설정값을 upstream에서 시행되는 한도로 간주하지 마세요.
 
 Upstream catalog는 gateway와 독립적으로 바뀔 수 있으므로 `/v1/models`는 local embedding model만 표시합니다. Installer의 default Honcho chat model은 **GPT-6.1 Sol (`gpt-6.1-sol`)**이며, model effort가 생략된 plain request와 tool loop 모두 **`medium`**을 사용합니다. 다른 model은 `--chat-model`로 명시할 수 있고, 명시된 effort는 그대로 전달합니다.
 
@@ -222,31 +222,33 @@ Upstream catalog는 gateway와 독립적으로 바뀔 수 있으므로 `/v1/mode
 sudo ./install.sh --chat-model gpt-6.1-sol
 ```
 
-### Codex 0.160.1 compatibility
+### Codex 0.163.0 compatibility
 
-Gateway의 default compatibility version은 **`0.160.1`**입니다. 2026-10-07 authenticated catalog 확인 시 `gpt-6.1-sol`은 `visibility=list`, `supported_in_api=true`, `use_responses_lite=true`이며 `medium` effort를 지원했습니다. 기존 `auto` profile이 해당 Lite request shape를 선택하므로 model별 hardcoded route는 필요하지 않습니다. Upstream release: [Codex 0.160.1](https://github.com/openai/codex/releases/tag/rust-v0.160.1).
+Gateway의 default compatibility version은 **`0.163.0`**입니다. 2026-10-19 authenticated catalog 확인 시 `gpt-6.1-sol`은 `visibility=list`, `supported_in_api=true`, `use_responses_lite=true`이며 `medium` effort를 지원했습니다. 기존 `auto` profile이 해당 Lite request shape를 선택하므로 model별 hardcoded route는 필요하지 않습니다. Upstream release: [Codex 0.163.0](https://github.com/openai/codex/releases/tag/rust-v0.163.0).
 
 기존 gateway `.env`의 명시값은 installer가 보존하므로, 새 기본값으로 전환할 때 다음 값을 직접 갱신하세요.
 
 ```env
-CODEX_GATEWAY_CLIENT_VERSION=0.160.1
+CODEX_GATEWAY_CLIENT_VERSION=0.163.0
 CODEX_GATEWAY_REASONING_EFFORT=medium
 CODEX_GATEWAY_TOOL_REASONING_EFFORT=medium
 ```
 
-Honcho의 LLM `*MODEL_CONFIG__MODEL` 값들(embedding model 제외)도 `gpt-6.1-sol`로 변경하고 container를 recreate해야 합니다. 아래 installer 명령은 chat route 9개를 갱신합니다. `0.160.1`은 catalog query와 wire header에 사용하는 compatibility metadata이며, gateway는 Codex CLI subprocess를 실행하거나 official client identity를 사칭하지 않습니다. Codex Desktop/CLI binary update는 별도입니다.
+Honcho의 LLM `*MODEL_CONFIG__MODEL` 값들(embedding model 제외)도 `gpt-6.1-sol`로 변경하고 container를 recreate해야 합니다. 아래 installer 명령은 chat route 9개를 갱신합니다. `0.163.0`은 catalog query와 wire header에 사용하는 compatibility metadata이며, gateway는 Codex CLI subprocess를 실행하거나 official client identity를 사칭하지 않습니다. Codex Desktop/CLI binary update는 별도입니다.
 
 ## 기존 Honcho 업데이트와 Sol 6.1 medium 전환
 
-Tokenizer patch는 의도적으로 `src/embedding_client.py`를 수정합니다. 따라서 Honcho를 pull하기 전에 생성된 patch를 복원해야 합니다. `git status`에 이 patch 외의 tracked change가 보이면 먼저 멈추고 확인하세요.
+업데이트 전에 `pg_dump --format=custom`으로 DB를 백업하고 `pg_restore --list`로 확인한 뒤, 두 프로젝트의 `.env`, Compose file, local diff를 checkout 밖에 보존하세요. Honcho [3.3.0](https://github.com/plastic-labs/honcho/releases/tag/v3.3.0)은 message content에 concurrent `pg_trgm` index를 추가하므로 disk 여유가 필요합니다(index 크기는 message table의 약 1.5배일 수 있습니다). 기존 embedding dimension 변경이나 vector 재생성은 필요하지 않습니다.
+
+Tokenizer patch는 의도적으로 `src/embedding_client.py`를 수정하므로, 백업 후 생성된 patch만 복원하세요. `git status`에 이 patch 외의 tracked change가 보이면 먼저 멈추고 확인하세요. 아래 명령은 unreleased `main` 대신 검증된 Honcho release로 고정합니다.
 
 ```bash
 # 1. Honcho checkout 업데이트
 cd /path/to/honcho
 git status --short
-git restore src/embedding_client.py
-rm -f src/embedding_client.py.bak.honcho-codex-gateway-*
-git pull --ff-only
+git restore --source=HEAD --staged --worktree -- src/embedding_client.py
+git fetch origin --tags
+git merge --ff-only v3.3.0
 
 # 2. Gateway 업데이트, Honcho의 chat route 9개를 Sol 6.1로 변경,
 #    tokenizer/Compose integration patch 재적용
@@ -259,14 +261,16 @@ sudo ./install.sh \
   --non-interactive
 
 # 3. Gateway를 먼저 rebuild한 뒤 Honcho rebuild
-sudo docker compose up -d --build
+sudo docker compose up -d --build --no-deps codex-gateway
 cd ../honcho
-sudo docker compose up -d --build
+sudo docker compose up -d --build --no-deps api deriver
 ```
 
 `--skip-auth`는 기존 Codex OAuth login을 그대로 유지합니다. Re-authentication이 필요할 때만 빼세요. Installer는 Honcho `.env`를 backup하고 Dialectic minimal/low/medium/high/max, Summary, Deriver, Dream 두 route를 갱신한 뒤 GGUF tokenizer patch를 다시 적용합니다.
 
 Native Windows에서는 해당 명령을 제공하는 shell에서 같은 `git` 및 `docker compose` 명령을 사용하고, `sudo`를 사용할 수 없다면 생략하세요. 이 existing-install update path는 검증했지만, complete fresh-install 및 OAuth-bootstrap flow까지 Windows-tested라고 주장하지는 않습니다.
+
+Native Codex CLI의 binary는 별도로 `codex update`를 실행하고 `codex --version`으로 확인하세요. Git Bash의 GNU `tar`가 Windows `tar.exe`보다 먼저 선택되어 `Cannot connect to C:`가 나오면, PowerShell에서 `%SystemRoot%\System32`가 Git `usr\bin`보다 `PATH` 앞에 오도록 한 뒤 실행하세요. 기존 Codex session은 새 binary를 쓰려면 재시작해야 하며, gateway 자체는 Codex CLI 설치를 요구하지 않습니다.
 
 ## smoke tests
 
