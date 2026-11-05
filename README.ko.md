@@ -33,7 +33,7 @@ Honcho Codex Gateway는 self-hosted Honcho를 Codex-backed chat completions와 l
 | --- | --- |
 | Linux + Docker Compose | 테스트됨 |
 | Honcho Docker quick install | 주요 대상 |
-| Honcho baseline | 3.4.0 (기존 설치 update 경로 검증) |
+| Honcho baseline | 3.5.0 (기존 설치 update 경로 검증) |
 | Fresh Honcho database | 권장 |
 | Existing Honcho database | 가능하지만 embedding dimension 변경은 주의 필요 |
 | Default chat model / effort | GPT-6.1 Sol / medium |
@@ -52,7 +52,7 @@ Default install은 다음 경로로 smoke-tested 되었습니다.
 - 1024-dimensional BGE-M3 embeddings
 - llama.cpp/GGUF token count를 반환하는 gateway `/internal/token-count`
 - Honcho queue drain to zero pending work units
-- 기존 1024-dimensional pgvector database를 유지한 Windows 11 + Docker Desktop 환경의 Honcho 3.4.0 update — 3.3.0 message-search trigram index와 3.4.0 `deletion_generation` / queue partial-index migration 포함
+- 기존 1024-dimensional pgvector database를 유지한 Windows 11 + Docker Desktop 환경의 Honcho 3.4.0 → 3.5.0 update — 3.3.0 message-search trigram index, 3.4.0 `deletion_generation` / queue partial-index migration, 3.5.0 `deleted_at` tombstone column과 `conclusion_source_messages` table 포함
 - Rebuild 후 tokenizer patch V2 적용·idempotent 재적용과 Honcho-to-gateway embedding request
 
 ## 빠른 설치
@@ -105,7 +105,7 @@ Honcho chunker
 
 Honcho는 여전히 직접 여러 embedding chunk를 만듭니다. Gateway는 backend token count만 알려줍니다.
 
-Patch는 marker가 있고 idempotent합니다. 현재 helper는 legacy Honcho embedding client와 Honcho 3.1–3.4.0 layout 및 public `truncate_to_token_limit` caller를 지원합니다. 알 수 없는 future upstream layout에서는 부분적으로 patch된 파일을 쓰지 않고 먼저 실패합니다.
+Patch는 marker가 있고 idempotent합니다. 현재 helper는 legacy Honcho embedding client와 Honcho 3.1–3.5.0 layout 및 public `truncate_to_token_limit` caller를 지원합니다. 알 수 없는 future upstream layout에서는 부분적으로 patch된 파일을 쓰지 않고 먼저 실패합니다.
 
 Honcho update로 patch가 사라졌다면 다시 실행하세요.
 
@@ -200,7 +200,7 @@ EMBEDDING_MODEL_CONFIG__MODEL=text-embedding-bge-m3
 EMBEDDING_MODEL_CONFIG__OVERRIDES__BASE_URL=http://codex-gateway:8787/v1
 EMBEDDING_MODEL_CONFIG__OVERRIDES__API_KEY_ENV=LLM_OPENAI_API_KEY
 EMBEDDING_VECTOR_DIMENSIONS=1024
-EMBEDDING_MAX_INPUT_TOKENS=8192
+EMBEDDING_MAX_INPUT_TOKENS=8190  # llama.cpp --batch-size 8192 대비 2토큰 여유
 EMBEDDING_TOKENIZER_PROVIDER=gateway
 EMBEDDING_TOKENIZER_BASE_URL=http://codex-gateway:8787
 EMBEDDING_TOKENIZER_API_KEY_ENV=LLM_OPENAI_API_KEY
@@ -215,7 +215,7 @@ upstream default는 `low`입니다.
 
 `/v1/chat/completions`에서 gateway는 Honcho 요청의 `model` 값을 바꾸지 않고 authenticated Codex Responses backend로 그대로 전달합니다. Chat-model allowlist, alias map, silent fallback을 두지 않으며, 실제 사용 가능 여부는 현재 Codex account/catalog가 결정합니다.
 
-Honcho 3.4.0 workspace chat은 recall tool이 성공할 때까지 `tool_choice=required`를 사용하고, 이후 `auto`로 완화합니다. Gateway는 두 값을 Responses로 그대로 전달하며 모든 tool 요청을 `auto`로 강제하지 않습니다. Codex OAuth Responses endpoint는 `max_output_tokens`뿐 아니라 `max_tokens`, `max_completion_tokens`도 거부합니다. Gateway는 Honcho 호환성을 위해 cap 필드를 받되 upstream으로 전달하지 않으며 **output-token cap을 강제하지 않습니다.** Honcho의 설정값을 upstream에서 시행되는 한도로 간주하지 마세요.
+Honcho 3.4.0+ workspace chat은 recall tool이 성공할 때까지 `tool_choice=required`를 사용하고, 이후 `auto`로 완화합니다. Gateway는 두 값을 Responses로 그대로 전달하며 모든 tool 요청을 `auto`로 강제하지 않습니다. Codex OAuth Responses endpoint는 `max_output_tokens`뿐 아니라 `max_tokens`, `max_completion_tokens`도 거부합니다. Gateway는 Honcho 호환성을 위해 cap 필드를 받되 upstream으로 전달하지 않으며 **output-token cap을 강제하지 않습니다.** Honcho의 설정값을 upstream에서 시행되는 한도로 간주하지 마세요.
 
 Upstream catalog는 gateway와 독립적으로 바뀔 수 있으므로 `/v1/models`는 local embedding model만 표시합니다. Installer의 default Honcho chat model은 **GPT-6.1 Sol (`gpt-6.1-sol`)**이며, model effort가 생략된 plain request와 tool loop 모두 **`medium`**을 사용합니다. 다른 model은 `--chat-model`로 명시할 수 있고, 명시된 effort는 그대로 전달합니다.
 
@@ -239,7 +239,7 @@ Honcho의 LLM `*MODEL_CONFIG__MODEL` 값들(embedding model 제외)도 `gpt-6.1-
 
 ## 기존 Honcho 업데이트와 Sol 6.1 medium 전환
 
-업데이트 전에 `pg_dump --format=custom`으로 DB를 백업하고 `pg_restore --list`로 확인한 뒤, 두 프로젝트의 `.env`, Compose file, local diff를 checkout 밖에 보존하세요. Honcho [3.4.0](https://github.com/plastic-labs/honcho/releases/tag/v3.4.0)에는 schema migration이 포함됩니다: workspaces, sessions, collections에 catalog-only `deletion_generation` column(`INTEGER NOT NULL DEFAULT 0`)을 추가하고, pending queue row에 partial index 5개를 만듭니다. Index는 `CONCURRENTLY`로 build되며 `ix_queue_pending_observers`는 `btree_gin` extension이 필요합니다(생성할 수 없으면 migration이 그 index를 건너뛰고 statement를 log합니다). Concurrent build는 open transaction과 오래된 snapshot을 기다리다 60분 뒤 실패해 invalid index를 남기고, 다음 실행이 drop/rebuild합니다 — 크거나 바쁜 DB라면 Honcho troubleshooting의 statement로 미리 build하세요. 새 column/index를 읽는 코드는 아직 없고, embedding dimension 변경이나 vector 재생성은 필요하지 않습니다. 3.4.0은 또한 workload가 쓰지 않는 transport에 LLM API key가 설정된 경우 startup 경고를 냅니다(정보성이며 startup을 막지 않습니다).
+업데이트 전에 `pg_dump --format=custom`으로 DB를 백업하고 `pg_restore --list`로 확인한 뒤, 두 프로젝트의 `.env`, Compose file, local diff를 checkout 밖에 보존하세요. Honcho [3.4.0](https://github.com/plastic-labs/honcho/releases/tag/v3.4.0)에는 schema migration이 포함됩니다: workspaces, sessions, collections에 catalog-only `deletion_generation` column(`INTEGER NOT NULL DEFAULT 0`)을 추가하고, pending queue row에 partial index 5개를 만듭니다. Index는 `CONCURRENTLY`로 build되며 `ix_queue_pending_observers`는 `btree_gin` extension이 필요합니다(생성할 수 없으면 migration이 그 index를 건너뛰고 statement를 log합니다). Concurrent build는 open transaction과 오래된 snapshot을 기다리다 60분 뒤 실패해 invalid index를 남기고, 다음 실행이 drop/rebuild합니다 — 크거나 바쁜 DB라면 Honcho troubleshooting의 statement로 미리 build하세요. 새 column/index를 읽는 코드는 아직 없고, embedding dimension 변경이나 vector 재생성은 필요하지 않습니다. 3.4.0은 또한 workload가 쓰지 않는 transport에 LLM API key가 설정된 경우 startup 경고를 냅니다(정보성이며 startup을 막지 않습니다). 이어서 Honcho 3.5.0은 expand-only migration 두 개를 추가합니다: workspaces, peers, sessions, messages에 nullable `deleted_at` timestamp(`d8c4f6a2b901`), 그리고 `conclusion_source_messages` table(`c4d8e2f6a1b3`)입니다. 둘 다 embedding dimension을 바꾸지 않고 re-embedding도 필요 없으며, alembic head는 `c4d8e2f6a1b3`이 됩니다.
 
 Tokenizer patch는 의도적으로 `src/embedding_client.py`를 수정하므로, 백업 후 생성된 patch만 복원하세요. `git status`에 이 patch 외의 tracked change가 보이면 먼저 멈추고 확인하세요. 아래 명령은 unreleased `main` 대신 검증된 Honcho release로 고정합니다.
 
@@ -249,7 +249,7 @@ cd /path/to/honcho
 git status --short
 git restore --source=HEAD --staged --worktree -- src/embedding_client.py
 git fetch origin --tags
-git merge --ff-only v3.4.0
+git merge --ff-only v3.5.0
 
 # 2. Gateway 업데이트, Honcho의 chat route 9개를 Sol 6.1로 변경,
 #    tokenizer/Compose integration patch 재적용

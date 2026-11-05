@@ -33,7 +33,7 @@ Use it locally, with your own credentials, and do not expose it to the public in
 | --- | --- |
 | Linux + Docker Compose | Tested |
 | Honcho Docker quick install | Primary target |
-| Honcho baseline | 3.4.0 (existing-install update path tested) |
+| Honcho baseline | 3.5.0 (existing-install update path tested) |
 | Fresh Honcho database | Recommended |
 | Existing Honcho database | Possible, but embedding dimension changes require care |
 | Default chat model / effort | GPT-6.1 Sol / medium |
@@ -52,7 +52,7 @@ The default install has been smoke-tested with:
 - BGE-M3 embeddings returning 1024-dimensional vectors
 - gateway `/internal/token-count` returning llama.cpp/GGUF token counts
 - Honcho queue drain to zero pending work units
-- a Honcho 3.4.0 update on Windows 11 with Docker Desktop while preserving an existing 1024-dimensional pgvector database, including the 3.3.0 message-search trigram index and the 3.4.0 `deletion_generation` / queue partial-index migration
+- a Honcho 3.4.0 → 3.5.0 update on Windows 11 with Docker Desktop while preserving an existing 1024-dimensional pgvector database, including the 3.3.0 message-search trigram index, the 3.4.0 `deletion_generation` / queue partial-index migration, and the 3.5.0 `deleted_at` tombstone columns plus `conclusion_source_messages` table
 - tokenizer patch V2 application, idempotent reapplication, and Honcho-to-gateway embedding requests after the rebuild
 
 ## Quick install
@@ -105,7 +105,7 @@ Honcho chunker
 
 Honcho still creates separate embedding chunks itself. The gateway only provides the backend token count.
 
-The patch is marked and idempotent. The current helper supports both the legacy Honcho embedding client and the Honcho 3.1–3.4.0 layout, including its public `truncate_to_token_limit` callers. If a future upstream layout is unknown, it fails before writing a partially patched file.
+The patch is marked and idempotent. The current helper supports both the legacy Honcho embedding client and the Honcho 3.1–3.5.0 layout, including its public `truncate_to_token_limit` callers. If a future upstream layout is unknown, it fails before writing a partially patched file.
 
 If a Honcho update replaces the patched file, rerun:
 
@@ -200,7 +200,7 @@ EMBEDDING_MODEL_CONFIG__MODEL=text-embedding-bge-m3
 EMBEDDING_MODEL_CONFIG__OVERRIDES__BASE_URL=http://codex-gateway:8787/v1
 EMBEDDING_MODEL_CONFIG__OVERRIDES__API_KEY_ENV=LLM_OPENAI_API_KEY
 EMBEDDING_VECTOR_DIMENSIONS=1024
-EMBEDDING_MAX_INPUT_TOKENS=8192
+EMBEDDING_MAX_INPUT_TOKENS=8190  # 2-token headroom under llama.cpp --batch-size 8192
 EMBEDDING_TOKENIZER_PROVIDER=gateway
 EMBEDDING_TOKENIZER_BASE_URL=http://codex-gateway:8787
 EMBEDDING_TOKENIZER_API_KEY_ENV=LLM_OPENAI_API_KEY
@@ -215,7 +215,7 @@ and its upstream default is `low`.
 
 For `/v1/chat/completions`, the gateway forwards Honcho's `model` value unchanged to the authenticated Codex Responses backend. It does not keep a chat-model allowlist, alias map, or silent fallback. Model availability is decided by the current Codex account/catalog.
 
-Honcho 3.4.0 workspace chat forces `tool_choice=required` until a recall tool succeeds, then relaxes to `auto`. The gateway forwards both choices to Responses; it does not force `auto` on every tool request. The Codex OAuth Responses endpoint rejects `max_output_tokens` (as well as `max_tokens` and `max_completion_tokens`). The gateway accepts Honcho's cap fields for Chat Completions compatibility but intentionally **does not forward or enforce an output-token cap**. Do not interpret a configured Honcho output cap as an enforced upstream limit.
+Honcho 3.4.0+ workspace chat forces `tool_choice=required` until a recall tool succeeds, then relaxes to `auto`. The gateway forwards both choices to Responses; it does not force `auto` on every tool request. The Codex OAuth Responses endpoint rejects `max_output_tokens` (as well as `max_tokens` and `max_completion_tokens`). The gateway accepts Honcho's cap fields for Chat Completions compatibility but intentionally **does not forward or enforce an output-token cap**. Do not interpret a configured Honcho output cap as an enforced upstream limit.
 
 Because that upstream catalog can change independently, `/v1/models` only lists the local embedding model. The installer's default Honcho chat model is **GPT-6.1 Sol (`gpt-6.1-sol`)**, with **`medium`** effort for both plain requests and tool loops when the caller omits model effort. Select another model with `--chat-model`; explicitly requested efforts still pass through unchanged.
 
@@ -239,7 +239,7 @@ Also change Honcho's LLM `*MODEL_CONFIG__MODEL` entries (not the embedding model
 
 ## Updating Honcho and switching an existing install to Sol 6.1 medium
 
-Before updating, back up the database with `pg_dump --format=custom`, validate it with `pg_restore --list`, and preserve both projects' `.env`, Compose files, and local diffs outside the checkouts. Honcho [3.4.0](https://github.com/plastic-labs/honcho/releases/tag/v3.4.0) includes a schema migration: a catalog-only `deletion_generation` column (`INTEGER NOT NULL DEFAULT 0`) on workspaces, sessions and collections, plus five partial indexes over pending queue rows. The indexes are built `CONCURRENTLY`; `ix_queue_pending_observers` needs the `btree_gin` extension, and where it cannot be created the migration skips it and logs the statement. A concurrent build waits for open transactions and older snapshots, then fails after 60 minutes and leaves an invalid index that the next run drops and rebuilds — on a large or busy database, build the indexes ahead of the upgrade with Honcho's troubleshooting statements. Nothing reads the new column or indexes yet, and no embedding-dimension change or re-embedding is required. 3.4.0 also warns at startup when an LLM API key is configured for a transport no workload uses; the warning is informational and does not block startup.
+Before updating, back up the database with `pg_dump --format=custom`, validate it with `pg_restore --list`, and preserve both projects' `.env`, Compose files, and local diffs outside the checkouts. Honcho [3.4.0](https://github.com/plastic-labs/honcho/releases/tag/v3.4.0) includes a schema migration: a catalog-only `deletion_generation` column (`INTEGER NOT NULL DEFAULT 0`) on workspaces, sessions and collections, plus five partial indexes over pending queue rows. The indexes are built `CONCURRENTLY`; `ix_queue_pending_observers` needs the `btree_gin` extension, and where it cannot be created the migration skips it and logs the statement. A concurrent build waits for open transactions and older snapshots, then fails after 60 minutes and leaves an invalid index that the next run drops and rebuilds — on a large or busy database, build the indexes ahead of the upgrade with Honcho's troubleshooting statements. Nothing reads the new column or indexes yet, and no embedding-dimension change or re-embedding is required. 3.4.0 also warns at startup when an LLM API key is configured for a transport no workload uses; the warning is informational and does not block startup. Honcho 3.5.0 then adds two expand-only migrations: nullable `deleted_at` timestamps on workspaces, peers, sessions and messages (`d8c4f6a2b901`), and a `conclusion_source_messages` table (`c4d8e2f6a1b3`). Neither changes the embedding dimension or requires a re-embedding, and the alembic head becomes `c4d8e2f6a1b3`.
 
 The tokenizer patch intentionally modifies `src/embedding_client.py`, so restore only that generated patch after backing it up. Stop if `git status` shows unrelated tracked changes. The commands below pin the tested Honcho release instead of following unreleased `main` changes.
 
@@ -249,7 +249,7 @@ cd /path/to/honcho
 git status --short
 git restore --source=HEAD --staged --worktree -- src/embedding_client.py
 git fetch origin --tags
-git merge --ff-only v3.4.0
+git merge --ff-only v3.5.0
 
 # 2. Update the gateway, rewrite all nine Honcho chat routes to Sol 6.1,
 #    and reapply the tokenizer/Compose integration patches.
